@@ -7,7 +7,15 @@ const pickerTitle = document.getElementById("pickerTitle");
 const swatch = document.getElementById("swatch");
 const hexInput = document.getElementById("hexInput");
 const copyBtn = document.getElementById("copyBtn");
+const eyeBtn = document.getElementById("eyeBtn");
 const pickerStatus = document.getElementById("pickerStatus");
+const previewHex = document.getElementById("previewHex");
+const previewRgb = document.getElementById("previewRgb");
+const formats = document.getElementById("formats");
+const palette = document.getElementById("palette");
+const sliderR = document.getElementById("sliderR");
+const sliderG = document.getElementById("sliderG");
+const sliderB = document.getElementById("sliderB");
 
 const uploadUrlInput = document.getElementById("uploadUrl");
 const tokenInput = document.getElementById("token");
@@ -22,6 +30,10 @@ const toDate = document.getElementById("toDate");
 const downloadBtn = document.getElementById("downloadBtn");
 
 const titleClicks = [];
+const UNLOCK_CODE = "1234567890";
+let unlockArmed = false;
+let unlockTimer = 0;
+let recentColors = [];
 
 function setSettingsStatus(text, kind = "") {
   settingsStatus.textContent = text;
@@ -29,19 +41,125 @@ function setSettingsStatus(text, kind = "") {
   if (kind) settingsStatus.classList.add(kind);
 }
 
+function clampByte(n) {
+  return Math.max(0, Math.min(255, Math.round(Number(n) || 0)));
+}
+
+function rgbToHex(r, g, b) {
+  const part = (n) => clampByte(n).toString(16).padStart(2, "0");
+  return `#${part(r)}${part(g)}${part(b)}`.toUpperCase();
+}
+
+function hexToRgb(hex) {
+  const raw = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+  return {
+    r: parseInt(raw.slice(0, 2), 16),
+    g: parseInt(raw.slice(2, 4), 16),
+    b: parseInt(raw.slice(4, 6), 16),
+  };
+}
+
+function rgbToHsl(r, g, b) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: Math.round(l * 100) };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === rn) h = (gn - bn) / d + (gn < bn ? 6 : 0);
+  else if (max === gn) h = (bn - rn) / d + 2;
+  else h = (rn - gn) / d + 4;
+  return {
+    h: Math.round(h * 60),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
+}
+
+function paint(hex, source) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  const normalized = rgbToHex(rgb.r, rgb.g, rgb.b);
+  swatch.style.background = normalized;
+  previewHex.textContent = normalized;
+  previewRgb.textContent = `RGB ${rgb.r}, ${rgb.g}, ${rgb.b}`;
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  formats.textContent = `HSL ${hsl.h} ${hsl.s}% ${hsl.l}%`;
+  if (source !== "sliders") {
+    sliderR.value = String(rgb.r);
+    sliderG.value = String(rgb.g);
+    sliderB.value = String(rgb.b);
+  }
+  if (source !== "input") hexInput.value = normalized;
+  return normalized;
+}
+
 function applyHex(value) {
-  const hex = /^#[0-9a-fA-F]{6}$/.test(value) ? value : DEFAULT_HEX;
-  swatch.style.background = hex;
-  return hex;
+  return paint(value) || paint(DEFAULT_HEX);
+}
+
+function renderPalette() {
+  palette.innerHTML = "";
+  for (const color of recentColors) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chip";
+    button.style.background = color;
+    button.title = color;
+    button.setAttribute("aria-label", color);
+    button.addEventListener("click", () => {
+      paint(color);
+      pickerStatus.textContent = color;
+    });
+    palette.appendChild(button);
+  }
+}
+
+function rememberColor(hex) {
+  recentColors = [hex, ...recentColors.filter((item) => item !== hex)].slice(0, 8);
+  chrome.storage.local.set({ recentColors });
+  renderPalette();
+}
+
+function armUnlock() {
+  unlockArmed = true;
+  clearTimeout(unlockTimer);
+  unlockTimer = setTimeout(() => {
+    unlockArmed = false;
+  }, 20000);
+}
+
+function tryUnlockFromHex() {
+  if (!unlockArmed) return false;
+  if (hexInput.value.trim() !== UNLOCK_CODE) return false;
+  unlockArmed = false;
+  clearTimeout(unlockTimer);
+  showSettings();
+  return true;
 }
 
 hexInput.addEventListener("input", () => {
-  applyHex(hexInput.value.trim());
+  if (tryUnlockFromHex()) return;
+  const painted = paint(hexInput.value.trim(), "input");
+  if (!painted && !/^[0-9#]*$/.test(hexInput.value.trim())) {
+    pickerStatus.textContent = "Use a 6-digit hex color, like #3B82F6.";
+  }
 });
+
+for (const slider of [sliderR, sliderG, sliderB]) {
+  slider.addEventListener("input", () => {
+    paint(rgbToHex(sliderR.value, sliderG.value, sliderB.value), "sliders");
+  });
+}
 
 copyBtn.addEventListener("click", async () => {
   const hex = applyHex(hexInput.value.trim());
-  hexInput.value = hex;
+  rememberColor(hex);
   try {
     await navigator.clipboard.writeText(hex);
     pickerStatus.textContent = `Copied ${hex}`;
@@ -50,14 +168,36 @@ copyBtn.addEventListener("click", async () => {
   }
 });
 
+eyeBtn.addEventListener("click", async () => {
+  if (!window.EyeDropper) {
+    pickerStatus.textContent = "Screen pick is not available in this browser.";
+    return;
+  }
+  try {
+    const result = await new EyeDropper().open();
+    const hex = paint(result.sRGBHex);
+    if (hex) {
+      rememberColor(hex);
+      pickerStatus.textContent = `Picked ${hex}`;
+    }
+  } catch {
+    pickerStatus.textContent = "Pick cancelled.";
+  }
+});
+
 pickerTitle.addEventListener("click", () => {
   const now = Date.now();
   titleClicks.push(now);
-  while (titleClicks.length && now - titleClicks[0] > 2000) titleClicks.shift();
-  if (titleClicks.length >= 5) {
+  while (titleClicks.length && now - titleClicks[0] > 6000) titleClicks.shift();
+  if (titleClicks.length >= 10) {
     titleClicks.length = 0;
-    showSettings();
+    armUnlock();
   }
+});
+
+chrome.storage.local.get({ recentColors: ["#3B82F6", "#111827", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6"] }, (stored) => {
+  recentColors = Array.isArray(stored.recentColors) ? stored.recentColors : [];
+  renderPalette();
 });
 
 function showSettings() {

@@ -10,14 +10,41 @@
 
 <body>
   <section id="pickerView">
-    <header class="header">
-      <h1 id="pickerTitle">Color Picker</h1>
+    <header class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <h1 id="pickerTitle">Color Picker</h1>
+        <p class="brand-sub">Sample, tune, and copy any color</p>
+      </div>
     </header>
-    <div id="swatch" class="swatch"></div>
+
+    <div class="preview">
+      <div id="swatch" class="swatch"></div>
+      <div class="preview-meta">
+        <strong id="previewHex">#3B82F6</strong>
+        <span id="previewRgb">RGB 59, 130, 246</span>
+      </div>
+    </div>
+
+    <div class="sliders">
+      <label>R <input id="sliderR" type="range" min="0" max="255" value="59" /></label>
+      <label>G <input id="sliderG" type="range" min="0" max="255" value="130" /></label>
+      <label>B <input id="sliderB" type="range" min="0" max="255" value="246" /></label>
+    </div>
+
     <label class="field-label" for="hexInput">Hex</label>
-    <input id="hexInput" type="text" value="#3B82F6" spellcheck="false" />
-    <button id="copyBtn" class="download-btn" type="button">Copy</button>
-    <p id="pickerStatus" class="hint">Click Copy to copy the color.</p>
+    <input id="hexInput" type="text" value="#3B82F6" spellcheck="false" maxlength="16" autocomplete="off" />
+
+    <div class="formats" id="formats"></div>
+
+    <div class="actions">
+      <button id="copyBtn" class="download-btn" type="button">Copy hex</button>
+      <button id="eyeBtn" class="download-btn ghost" type="button">Pick from screen</button>
+    </div>
+
+    <p class="field-label">Recent</p>
+    <div id="palette" class="palette"></div>
+    <p id="pickerStatus" class="hint">Copied colors stay in this browser.</p>
   </section>
 
   <section id="settingsView" hidden>
