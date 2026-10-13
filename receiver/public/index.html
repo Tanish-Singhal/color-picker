@@ -1,516 +1,853 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chats</title>
+    <style>
+      :root {
+        --wa-teal: #008069;
+        --wa-teal-dark: #005c4b;
+        --wa-green: #25d366;
+        --wa-panel: #f0f2f5;
+        --wa-list: #ffffff;
+        --wa-hover: #f5f6f6;
+        --wa-active: #f0f2f5;
+        --wa-chat-bg: #efeae2;
+        --wa-outgoing: #d9fdd3;
+        --wa-incoming: #ffffff;
+        --wa-text: #111b21;
+        --wa-muted: #667781;
+        --wa-border: #e9edef;
+        --wa-system: #ffffff99;
+      }
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chats</title>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+      * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #111;
-      background: #f3f4f6;
-    }
+      body {
+        margin: 0;
+        height: 100vh;
+        font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: var(--wa-text);
+        background: #d1d7db;
+      }
 
-    button,
-    input {
-      font: inherit;
-    }
+      button, input, select { font: inherit; }
 
-    #gate {
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
+      #gate {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          linear-gradient(180deg, var(--wa-teal) 0 140px, #d1d7db 140px);
+      }
 
-    .card {
-      width: min(420px, 100%);
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 20px;
-    }
+      .card {
+        width: min(420px, 100%);
+        background: #fff;
+        border-radius: 4px;
+        padding: 28px 24px;
+        box-shadow: 0 2px 12px rgba(11, 20, 26, 0.12);
+      }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 20px;
-    }
+      .card h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        font-weight: 400;
+        color: var(--wa-teal);
+      }
 
-    p {
-      margin: 0 0 14px;
-      color: #4b5563;
-      line-height: 1.4;
-    }
+      .card p {
+        margin: 0 0 18px;
+        color: var(--wa-muted);
+        line-height: 1.45;
+        font-size: 14px;
+      }
 
-    label {
-      display: block;
-      margin-bottom: 6px;
-      color: #6b7280;
-      font-size: 13px;
-    }
+      .card label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--wa-muted);
+        font-size: 13px;
+      }
 
-    input[type="password"] {
-      width: 100%;
-      margin-bottom: 12px;
-      padding: 10px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-    }
+      .card input[type="password"] {
+        width: 100%;
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border: 1px solid var(--wa-border);
+        border-radius: 8px;
+        outline: none;
+      }
 
-    button {
-      border: none;
-      border-radius: 8px;
-      padding: 10px 14px;
-      background: #111827;
-      color: #fff;
-      cursor: pointer;
-    }
+      .card input[type="password"]:focus {
+        border-color: var(--wa-teal);
+      }
 
-    button.secondary {
-      background: #fff;
-      color: #111;
-      border: 1px solid #d1d5db;
-    }
+      .card button[type="submit"] {
+        width: 100%;
+        border: none;
+        border-radius: 24px;
+        padding: 12px 16px;
+        background: var(--wa-teal);
+        color: #fff;
+        font-weight: 500;
+        cursor: pointer;
+      }
 
-    button:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
+      .card button[type="submit"]:hover { background: var(--wa-teal-dark); }
 
-    select {
-      padding: 8px 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      background: #fff;
-    }
+      #gateError { color: #ea4335; min-height: 1.2em; margin: 12px 0 0; padding: 0; }
 
-    #app {
-      display: none;
-      height: 100vh;
-      grid-template-rows: auto 1fr;
-    }
+      #app {
+        display: none;
+        height: 100vh;
+        max-width: 1600px;
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 0 24px rgba(11, 20, 26, 0.18);
+        grid-template-rows: auto 1fr;
+      }
 
-    header {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 12px 16px;
-      background: #fff;
-      border-bottom: 1px solid #e5e7eb;
-      flex-wrap: wrap;
-    }
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 16px;
+        background: var(--wa-panel);
+        border-bottom: 1px solid var(--wa-border);
+        flex-wrap: wrap;
+      }
 
-    #status {
-      flex: 1;
-      color: #4b5563;
-      font-size: 13px;
-      min-width: 160px;
-    }
+      .toolbar button {
+        border: none;
+        border-radius: 20px;
+        padding: 8px 16px;
+        background: var(--wa-teal);
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+      }
 
-    #status.error {
-      color: #b91c1c;
-    }
+      .toolbar button.secondary {
+        background: #fff;
+        color: var(--wa-text);
+        border: 1px solid var(--wa-border);
+      }
 
-    .layout {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      min-height: 0;
-    }
+      .toolbar button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-    aside {
-      background: #fff;
-      border-right: 1px solid #e5e7eb;
-      overflow: auto;
-    }
+      .toolbar select {
+        min-width: 180px;
+        padding: 8px 12px;
+        border: 1px solid var(--wa-border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--wa-text);
+      }
 
-    .chat-item {
-      display: block;
-      width: 100%;
-      text-align: left;
-      background: transparent;
-      color: #111;
-      border: none;
-      border-radius: 0;
-      border-bottom: 1px solid #f3f4f6;
-      padding: 12px 14px;
-    }
+      #status {
+        flex: 1;
+        color: var(--wa-muted);
+        font-size: 12px;
+        min-width: 140px;
+        line-height: 1.35;
+      }
 
-    .chat-item.active {
-      background: #ecfdf3;
-    }
+      #status.error { color: #ea4335; }
 
-    .chat-item strong {
-      display: block;
-    }
-
-    .chat-item span {
-      color: #6b7280;
-      font-size: 12px;
-    }
-
-    main {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      background: #efeae2;
-    }
-
-    #threadTitle {
-      padding: 12px 16px;
-      background: #f0f2f5;
-      border-bottom: 1px solid #e5e7eb;
-      font-weight: 600;
-    }
-
-    #thread {
-      flex: 1;
-      overflow: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .bubble {
-      max-width: min(70%, 520px);
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: #fff;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.35;
-    }
-
-    .bubble.me {
-      align-self: flex-end;
-      background: #d9fdd3;
-    }
-
-    .bubble.system {
-      align-self: center;
-      background: #fff7d6;
-      color: #6b7280;
-      font-size: 12px;
-    }
-
-    .meta {
-      display: block;
-      margin-top: 4px;
-      color: #6b7280;
-      font-size: 11px;
-      text-align: right;
-    }
-
-    .empty {
-      color: #6b7280;
-      padding: 24px;
-    }
-
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      border: 0;
-    }
-
-    @media (max-width: 720px) {
       .layout {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: minmax(300px, 380px) 1fr;
+        min-height: 0;
       }
 
-      aside {
-        max-height: 34vh;
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--wa-list);
+        border-right: 1px solid var(--wa-border);
       }
-    }
-  </style>
-</head>
 
-<body>
-  <section id="gate">
-    <form class="card" id="gateForm">
-      <h1>Chats</h1>
-      <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
-      <label for="tokenInput">Token</label>
-      <input id="tokenInput" type="password" autocomplete="current-password" required />
-      <button type="submit">Open</button>
-      <p id="gateError" class="empty"></p>
-    </form>
-  </section>
-
-  <section id="app">
-    <header>
-      <button id="pullBtn" type="button">Pull chats</button>
-      <button id="refreshBtn" class="secondary" type="button">Refresh</button>
-      <label for="senderFilter" class="sr-only">Sender</label>
-      <select id="senderFilter" aria-label="Filter by sender">
-        <option value="">All senders</option>
-      </select>
-      <div id="status">No chats yet.</div>
-    </header>
-    <div class="layout">
-      <aside id="list"></aside>
-      <main>
-        <div id="threadTitle">Select a chat</div>
-        <div id="thread"></div>
-      </main>
-    </div>
-  </section>
-
-  <script>
-    const tokenKey = "chatToken";
-    const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
-    let chats = [];
-    let selectedKey = "";
-    let pollTimer = 0;
-
-    const gate = document.getElementById("gate");
-    const app = document.getElementById("app");
-    const statusEl = document.getElementById("status");
-    const listEl = document.getElementById("list");
-    const threadEl = document.getElementById("thread");
-    const titleEl = document.getElementById("threadTitle");
-    const senderFilter = document.getElementById("senderFilter");
-
-    function chatKey(chat) {
-      return `${chat.senderName || ""}::${chat.chatId || ""}::${chat.day || ""}`;
-    }
-
-    function filteredChats() {
-      const sender = senderFilter.value;
-      if (!sender) return chats;
-      return chats.filter((chat) => chat.senderName === sender);
-    }
-
-    function fillSenderFilter() {
-      const current = senderFilter.value;
-      const names = [...new Set(chats.map((chat) => chat.senderName).filter(Boolean))].sort();
-      senderFilter.innerHTML = '<option value="">All senders</option>';
-      for (const name of names) {
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        senderFilter.appendChild(option);
+      .sidebar-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--wa-panel);
+        border-bottom: 1px solid var(--wa-border);
       }
-      if (names.includes(current)) senderFilter.value = current;
-    }
 
-    function setStatus(text, isError) {
-      statusEl.textContent = text;
-      statusEl.classList.toggle("error", Boolean(isError));
-    }
-
-    async function api(path, options = {}) {
-      const token = sessionStorage.getItem(tokenKey) || "";
-      const response = await fetch(path, {
-        ...options,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(options.body ? { "Content-Type": "application/json" } : {}),
-        },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (response.status === 401) {
-        sessionStorage.removeItem(tokenKey);
-        showGate("That token was rejected.");
-        throw new Error("Unauthorized");
+      .avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: #6b7c85;
+        flex-shrink: 0;
+        text-transform: uppercase;
       }
-      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-      return data;
-    }
 
-    function showGate(message) {
-      app.style.display = "none";
-      gate.style.display = "grid";
-      document.getElementById("gateError").textContent = message || "";
-    }
+      .avatar.sm { width: 40px; height: 40px; font-size: 14px; }
 
-    function showApp() {
-      gate.style.display = "none";
-      app.style.display = "grid";
-    }
+      .avatar.teal { background: var(--wa-teal); }
 
-    function parseMessages(text) {
-      const messages = [];
-      for (const rawLine of String(text || "").split("\n")) {
-        const match = rawLine.match(lineRe);
-        if (match) {
-          messages.push({
-            date: match[1],
-            time: match[2],
-            sender: match[3],
-            body: match[4],
+      .sidebar-head .meta-block { min-width: 0; flex: 1; }
+
+      .sidebar-head strong {
+        display: block;
+        font-size: 16px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sidebar-head span {
+        display: block;
+        color: var(--wa-muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      #list {
+        flex: 1;
+        overflow: auto;
+      }
+
+      .chat-item {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        color: var(--wa-text);
+        border: none;
+        border-bottom: 1px solid var(--wa-border);
+        border-radius: 0;
+        padding: 12px 16px;
+        cursor: pointer;
+        align-items: center;
+      }
+
+      .chat-item:hover { background: var(--wa-hover); }
+      .chat-item.active { background: var(--wa-active); }
+
+      .chat-item .row {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .chat-item .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .chat-item .name {
+        font-weight: 500;
+        font-size: 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .chat-item .when {
+        color: var(--wa-muted);
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+
+      .chat-item .preview {
+        color: var(--wa-muted);
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .pane {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--wa-chat-bg);
+      }
+
+      .pane.empty-pane {
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pane-empty {
+        text-align: center;
+        color: var(--wa-muted);
+        max-width: 360px;
+        padding: 24px;
+      }
+
+      .pane-empty h2 {
+        margin: 0 0 8px;
+        font-weight: 300;
+        font-size: 28px;
+        color: #41525d;
+      }
+
+      #threadHeader {
+        display: none;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: var(--wa-panel);
+        border-bottom: 1px solid var(--wa-border);
+      }
+
+      #threadHeader.visible { display: flex; }
+
+      #threadHeader .title {
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      #threadHeader .subtitle {
+        color: var(--wa-muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      #thread {
+        flex: 1;
+        overflow: auto;
+        padding: 12px 7% 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        background-color: var(--wa-chat-bg);
+        background-image:
+          radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+          radial-gradient(circle at 80% 40%, rgba(0, 0, 0, 0.025) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+
+      .day-pill {
+        align-self: center;
+        margin: 10px 0;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: var(--wa-system);
+        color: var(--wa-muted);
+        font-size: 12px;
+        box-shadow: 0 1px 1px rgba(11, 20, 26, 0.06);
+      }
+
+      .bubble {
+        position: relative;
+        max-width: min(65%, 560px);
+        padding: 6px 8px 4px 9px;
+        border-radius: 8px;
+        background: var(--wa-incoming);
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.4;
+        font-size: 14.2px;
+        box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+        margin: 2px 0;
+      }
+
+      .bubble.me {
+        align-self: flex-end;
+        background: var(--wa-outgoing);
+      }
+
+      .bubble.them { align-self: flex-start; }
+
+      .bubble.system {
+        align-self: center;
+        background: var(--wa-system);
+        color: var(--wa-muted);
+        font-size: 12.5px;
+        text-align: center;
+        max-width: 85%;
+        box-shadow: none;
+      }
+
+      .bubble .who {
+        color: #06cf9c;
+        font-size: 12.5px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+
+      .bubble .body { padding-right: 52px; }
+
+      .bubble .meta {
+        float: right;
+        margin: -2px 0 0 8px;
+        color: var(--wa-muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .empty {
+        color: var(--wa-muted);
+        padding: 28px 20px;
+        text-align: center;
+        font-size: 14px;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+
+      @media (max-width: 800px) {
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { max-height: 38vh; }
+        #thread { padding: 10px 4% 16px; }
+        .bubble { max-width: 88%; }
+      }
+    </style>
+  </head>
+  <body>
+    <section id="gate">
+      <form class="card" id="gateForm">
+        <h1>Chats</h1>
+        <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
+        <label for="tokenInput">Token</label>
+        <input id="tokenInput" type="password" autocomplete="current-password" required />
+        <button type="submit">Open</button>
+        <p id="gateError" class="empty"></p>
+      </form>
+    </section>
+
+    <section id="app">
+      <div class="toolbar">
+        <button id="pullBtn" type="button">Pull chats</button>
+        <button id="refreshBtn" class="secondary" type="button">Refresh</button>
+        <label for="senderFilter" class="sr-only">Sender phone</label>
+        <select id="senderFilter" aria-label="Choose sender">
+          <option value="">Choose a sender…</option>
+        </select>
+        <div id="status">No chats yet.</div>
+      </div>
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-head">
+            <div class="avatar teal" id="senderAvatar">?</div>
+            <div class="meta-block">
+              <strong id="senderTitle">Select a sender</strong>
+              <span id="senderSubtitle">One phone at a time</span>
+            </div>
+          </div>
+          <div id="list"></div>
+        </aside>
+        <main class="pane" id="pane">
+          <div id="threadHeader">
+            <div class="avatar sm" id="chatAvatar">?</div>
+            <div>
+              <div class="title" id="threadTitle">Select a chat</div>
+              <div class="subtitle" id="threadSubtitle"></div>
+            </div>
+          </div>
+          <div id="thread">
+            <div class="pane-empty">
+              <h2>WhatsApp viewer</h2>
+              <p>Pick a sender on the left, then open a chat.</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <script>
+      const tokenKey = "chatToken";
+      const senderKey = "chatSender";
+      const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
+      let exports = [];
+      let conversations = [];
+      let selectedChatId = "";
+      let pollTimer = 0;
+
+      const gate = document.getElementById("gate");
+      const app = document.getElementById("app");
+      const statusEl = document.getElementById("status");
+      const listEl = document.getElementById("list");
+      const threadEl = document.getElementById("thread");
+      const threadHeader = document.getElementById("threadHeader");
+      const titleEl = document.getElementById("threadTitle");
+      const subtitleEl = document.getElementById("threadSubtitle");
+      const senderFilter = document.getElementById("senderFilter");
+      const senderTitle = document.getElementById("senderTitle");
+      const senderSubtitle = document.getElementById("senderSubtitle");
+      const senderAvatar = document.getElementById("senderAvatar");
+      const chatAvatar = document.getElementById("chatAvatar");
+      const pane = document.getElementById("pane");
+
+      const avatarColors = ["#00a884", "#53bdeb", "#06cf9c", "#a855f7", "#ea580c", "#0284c7", "#db2777"];
+
+      function initials(name) {
+        const parts = String(name || "?").trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return "?";
+        if (parts.length === 1) return parts[0].slice(0, 2);
+        return `${parts[0][0] || ""}${parts[1][0] || ""}`;
+      }
+
+      function colorFor(name) {
+        let hash = 0;
+        const raw = String(name || "");
+        for (let i = 0; i < raw.length; i += 1) hash = (hash + raw.charCodeAt(i) * (i + 1)) % 997;
+        return avatarColors[hash % avatarColors.length];
+      }
+
+      function setAvatar(el, name) {
+        el.textContent = initials(name);
+        el.style.background = colorFor(name);
+      }
+
+      function parseMessages(text) {
+        const messages = [];
+        for (const rawLine of String(text || "").split("\n")) {
+          const match = rawLine.match(lineRe);
+          if (match) {
+            messages.push({
+              date: match[1],
+              time: match[2],
+              sender: match[3],
+              body: match[4],
+            });
+          } else if (messages.length && rawLine) {
+            messages[messages.length - 1].body += `\n${rawLine}`;
+          }
+        }
+        return messages;
+      }
+
+      function messageSortKey(message) {
+        const [dd, mm, yyyy] = String(message.date || "").split("/");
+        return `${yyyy || ""}-${mm || ""}-${dd || ""}T${message.time || "00:00:00"}`;
+      }
+
+      function activeSender() {
+        return senderFilter.value;
+      }
+
+      function buildConversations() {
+        const sender = activeSender();
+        const map = new Map();
+        if (!sender) {
+          conversations = [];
+          return;
+        }
+        for (const item of exports) {
+          if (item.senderName !== sender) continue;
+          const id = item.chatId || item.chatName || "";
+          if (!id) continue;
+          let entry = map.get(id);
+          if (!entry) {
+            entry = {
+              chatId: id,
+              chatName: item.chatName || id,
+              isGroup: Boolean(item.isGroup),
+              senderName: item.senderName,
+              texts: [],
+              days: [],
+              updatedAt: item.updatedAt || item.exportedAt || "",
+            };
+            map.set(id, entry);
+          }
+          entry.texts.push(item.text || "");
+          if (item.day) entry.days.push(item.day);
+          if ((item.updatedAt || "") > (entry.updatedAt || "")) {
+            entry.updatedAt = item.updatedAt;
+            entry.chatName = item.chatName || entry.chatName;
+          }
+        }
+        conversations = [...map.values()].map((entry) => {
+          const messages = entry.texts.flatMap((text) => parseMessages(text));
+          messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
+          const last = messages[messages.length - 1];
+          return {
+            ...entry,
+            messages,
+            preview: last ? `${last.sender === "You" ? "You: " : ""}${last.body}` : "No messages",
+            when: last?.date || entry.days.sort().slice(-1)[0] || "",
+          };
+        });
+        conversations.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      }
+
+      function fillSenderFilter() {
+        const names = [...new Set(exports.map((item) => item.senderName).filter(Boolean))].sort();
+        const saved = sessionStorage.getItem(senderKey) || "";
+        const previous = senderFilter.value || saved;
+        senderFilter.innerHTML = '<option value="">Choose a sender…</option>';
+        for (const name of names) {
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name;
+          senderFilter.appendChild(option);
+        }
+        if (names.includes(previous)) {
+          senderFilter.value = previous;
+        } else if (names.length === 1) {
+          senderFilter.value = names[0];
+        } else {
+          senderFilter.value = "";
+        }
+        if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
+      }
+
+      function updateSenderChrome() {
+        const sender = activeSender();
+        if (!sender) {
+          senderTitle.textContent = "Select a sender";
+          senderSubtitle.textContent = "One phone at a time";
+          setAvatar(senderAvatar, "?");
+          senderAvatar.classList.add("teal");
+          return;
+        }
+        senderAvatar.classList.remove("teal");
+        setAvatar(senderAvatar, sender);
+        senderTitle.textContent = sender;
+        const n = conversations.length;
+        senderSubtitle.textContent = `${n} chat${n === 1 ? "" : "s"}`;
+      }
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text;
+        statusEl.classList.toggle("error", Boolean(isError));
+      }
+
+      async function api(path, options = {}) {
+        const token = sessionStorage.getItem(tokenKey) || "";
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(options.body ? { "Content-Type": "application/json" } : {}),
+          },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          sessionStorage.removeItem(tokenKey);
+          showGate("That token was rejected.");
+          throw new Error("Unauthorized");
+        }
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        return data;
+      }
+
+      function showGate(message) {
+        app.style.display = "none";
+        gate.style.display = "grid";
+        document.getElementById("gateError").textContent = message || "";
+      }
+
+      function showApp() {
+        gate.style.display = "none";
+        app.style.display = "grid";
+      }
+
+      function renderList() {
+        listEl.innerHTML = "";
+        updateSenderChrome();
+        if (!activeSender()) {
+          listEl.innerHTML = '<div class="empty">Choose a sender above to see that phone’s chats.</div>';
+          return;
+        }
+        if (!conversations.length) {
+          listEl.innerHTML = '<div class="empty">No chats for this sender yet. Click Pull chats.</div>';
+          return;
+        }
+        for (const chat of conversations) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}`;
+          const avatar = document.createElement("div");
+          avatar.className = "avatar sm";
+          setAvatar(avatar, chat.chatName);
+          const row = document.createElement("div");
+          row.className = "row";
+          row.innerHTML = `<div class="top"><div class="name"></div><div class="when"></div></div><div class="preview"></div>`;
+          row.querySelector(".name").textContent = chat.chatName;
+          row.querySelector(".when").textContent = chat.when;
+          row.querySelector(".preview").textContent = chat.preview.replace(/\s+/g, " ").trim();
+          button.appendChild(avatar);
+          button.appendChild(row);
+          button.addEventListener("click", () => {
+            selectedChatId = chat.chatId;
+            renderList();
+            renderThread();
           });
-        } else if (messages.length && rawLine) {
-          messages[messages.length - 1].body += `\n${rawLine}`;
+          listEl.appendChild(button);
         }
       }
-      return messages;
-    }
 
-    function renderList() {
-      listEl.innerHTML = "";
-      const visible = filteredChats();
-      if (!visible.length) {
-        listEl.innerHTML = '<div class="empty">No chats stored yet.</div>';
-        return;
-      }
-      for (const chat of visible) {
-        const key = chatKey(chat);
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `chat-item${key === selectedKey ? " active" : ""}`;
-        const count = parseMessages(chat.text).length;
-        const label = chat.senderName
-          ? `${chat.senderName} · ${chat.chatName || chat.chatId}`
-          : chat.chatName || chat.chatId;
-        button.innerHTML = `<strong></strong><span></span>`;
-        button.querySelector("strong").textContent = label;
-        button.querySelector("span").textContent = `${chat.day || ""} · ${count} lines`;
-        button.addEventListener("click", () => {
-          selectedKey = key;
-          renderList();
-          renderThread();
-        });
-        listEl.appendChild(button);
-      }
-    }
+      function renderThread() {
+        const chat = conversations.find((item) => item.chatId === selectedChatId);
+        threadEl.innerHTML = "";
+        if (!activeSender()) {
+          threadHeader.classList.remove("visible");
+          pane.classList.add("empty-pane");
+          threadEl.innerHTML = `<div class="pane-empty"><h2>WhatsApp viewer</h2><p>Choose one sender first. Chats from different phones stay separate.</p></div>`;
+          return;
+        }
+        if (!chat) {
+          threadHeader.classList.remove("visible");
+          pane.classList.add("empty-pane");
+          threadEl.innerHTML = `<div class="pane-empty"><h2>${activeSender()}</h2><p>Select a chat from the list.</p></div>`;
+          return;
+        }
 
-    function renderThread() {
-      const chat = chats.find((item) => chatKey(item) === selectedKey);
-      threadEl.innerHTML = "";
-      if (!chat) {
-        titleEl.textContent = "Select a chat";
-        return;
-      }
-      titleEl.textContent = chat.senderName
-        ? `${chat.senderName} · ${chat.chatName || chat.chatId}`
-        : chat.chatName || chat.chatId;
-      const messages = parseMessages(chat.text);
-      if (!messages.length) {
-        threadEl.innerHTML = '<div class="empty">This export has no message lines.</div>';
-        return;
-      }
-      for (const message of messages) {
-        const bubble = document.createElement("div");
-        const sender = message.sender || "";
-        const kind = sender === "You" ? "me" : sender === "System" ? "system" : "";
-        bubble.className = `bubble ${kind}`.trim();
-        const who = document.createElement("div");
-        if (kind !== "me" && kind !== "system") who.textContent = sender;
-        const body = document.createElement("div");
-        body.textContent = message.body;
-        const meta = document.createElement("span");
-        meta.className = "meta";
-        meta.textContent = `${message.date} ${message.time}`;
-        if (who.textContent) bubble.appendChild(who);
-        bubble.appendChild(body);
-        bubble.appendChild(meta);
-        threadEl.appendChild(bubble);
-      }
-      threadEl.scrollTop = threadEl.scrollHeight;
-    }
+        pane.classList.remove("empty-pane");
+        threadHeader.classList.add("visible");
+        titleEl.textContent = chat.chatName;
+        subtitleEl.textContent = chat.isGroup ? "Group" : "Chat";
+        setAvatar(chatAvatar, chat.chatName);
 
-    async function loadChats() {
-      const data = await api("/exports?includeText=1");
-      chats = data.items || [];
-      fillSenderFilter();
-      const visible = filteredChats();
-      if (selectedKey && !visible.some((chat) => chatKey(chat) === selectedKey)) selectedKey = "";
-      if (!selectedKey && visible[0]) selectedKey = chatKey(visible[0]);
-      renderList();
-      renderThread();
-      return chats.length;
-    }
+        if (!chat.messages.length) {
+          threadEl.innerHTML = '<div class="empty">This chat has no message lines.</div>';
+          return;
+        }
 
-    async function refresh() {
-      setStatus("Loading…");
-      const count = await loadChats();
-      const trigger = await api("/trigger");
-      const who = trigger.senderName ? ` (${trigger.senderName})` : "";
-      const senderNote = trigger.senderStatus
-        ? ` Sender${who}: ${trigger.senderStatus}`
-        : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
-      if (trigger.export_requested) {
-        setStatus(`Waiting for an upload. ${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
-      } else {
-        setStatus(
-          count
-            ? `${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`
-            : `No chats stored yet.${senderNote}`,
-        );
+        let lastDate = "";
+        for (const message of chat.messages) {
+          if (message.date && message.date !== lastDate) {
+            lastDate = message.date;
+            const pill = document.createElement("div");
+            pill.className = "day-pill";
+            pill.textContent = message.date;
+            threadEl.appendChild(pill);
+          }
+          const bubble = document.createElement("div");
+          const sender = message.sender || "";
+          const kind = sender === "You" ? "me" : sender === "System" ? "system" : "them";
+          bubble.className = `bubble ${kind}`;
+          if (kind === "them" && chat.isGroup) {
+            const who = document.createElement("div");
+            who.className = "who";
+            who.textContent = sender;
+            who.style.color = colorFor(sender);
+            bubble.appendChild(who);
+          }
+          const body = document.createElement("div");
+          body.className = "body";
+          body.textContent = message.body;
+          const meta = document.createElement("span");
+          meta.className = "meta";
+          meta.textContent = message.time || "";
+          bubble.appendChild(body);
+          bubble.appendChild(meta);
+          threadEl.appendChild(bubble);
+        }
+        threadEl.scrollTop = threadEl.scrollHeight;
       }
-      return trigger.export_requested;
-    }
 
-    document.getElementById("gateForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
-      try {
-        showApp();
-        await refresh();
-      } catch (err) {
-        if (sessionStorage.getItem(tokenKey)) showGate(err.message);
+      async function loadChats() {
+        const data = await api("/exports?includeText=1");
+        exports = data.items || [];
+        fillSenderFilter();
+        buildConversations();
+        if (selectedChatId && !conversations.some((chat) => chat.chatId === selectedChatId)) {
+          selectedChatId = "";
+        }
+        if (!selectedChatId && conversations[0]) selectedChatId = conversations[0].chatId;
+        renderList();
+        renderThread();
+        return exports.length;
       }
-    });
 
-    document.getElementById("refreshBtn").addEventListener("click", () => {
-      refresh().catch((err) => setStatus(err.message, true));
-    });
-
-    senderFilter.addEventListener("change", () => {
-      const visible = filteredChats();
-      if (!visible.some((chat) => chatKey(chat) === selectedKey)) {
-        selectedKey = visible[0] ? chatKey(visible[0]) : "";
+      async function refresh() {
+        setStatus("Loading…");
+        const count = await loadChats();
+        const trigger = await api("/trigger");
+        const who = trigger.senderName ? ` (${trigger.senderName})` : "";
+        const senderNote = trigger.senderStatus
+          ? ` Sender${who}: ${trigger.senderStatus}`
+          : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
+        if (trigger.export_requested) {
+          setStatus(`Waiting for an upload. ${count} export${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
+        } else {
+          setStatus(
+            count
+              ? `${count} export${count === 1 ? "" : "s"} stored.${senderNote}`
+              : `No chats stored yet.${senderNote}`,
+          );
+        }
+        return trigger.export_requested;
       }
-      renderList();
-      renderThread();
-    });
 
-    document.getElementById("pullBtn").addEventListener("click", async () => {
-      const button = document.getElementById("pullBtn");
-      button.disabled = true;
-      clearInterval(pollTimer);
-      try {
-        await api("/trigger", { method: "POST" });
-        setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
-        let tries = 0;
-        pollTimer = setInterval(async () => {
-          tries += 1;
-          try {
-            const waiting = await refresh();
-            if (!waiting || tries >= 36) {
+      document.getElementById("gateForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
+        try {
+          showApp();
+          await refresh();
+        } catch (err) {
+          if (sessionStorage.getItem(tokenKey)) showGate(err.message);
+        }
+      });
+
+      document.getElementById("refreshBtn").addEventListener("click", () => {
+        refresh().catch((err) => setStatus(err.message, true));
+      });
+
+      senderFilter.addEventListener("change", () => {
+        if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
+        else sessionStorage.removeItem(senderKey);
+        buildConversations();
+        selectedChatId = conversations[0] ? conversations[0].chatId : "";
+        renderList();
+        renderThread();
+      });
+
+      document.getElementById("pullBtn").addEventListener("click", async () => {
+        const button = document.getElementById("pullBtn");
+        button.disabled = true;
+        clearInterval(pollTimer);
+        try {
+          await api("/trigger", { method: "POST" });
+          setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
+          let tries = 0;
+          pollTimer = setInterval(async () => {
+            tries += 1;
+            try {
+              const waiting = await refresh();
+              if (!waiting || tries >= 36) {
+                clearInterval(pollTimer);
+                button.disabled = false;
+                if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
+              }
+            } catch (err) {
               clearInterval(pollTimer);
               button.disabled = false;
-              if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
+              setStatus(err.message, true);
             }
-          } catch (err) {
-            clearInterval(pollTimer);
-            button.disabled = false;
-            setStatus(err.message, true);
-          }
-        }, 5000);
-      } catch (err) {
-        button.disabled = false;
-        setStatus(err.message, true);
+          }, 5000);
+        } catch (err) {
+          button.disabled = false;
+          setStatus(err.message, true);
+        }
+      });
+
+      if (sessionStorage.getItem(tokenKey)) {
+        showApp();
+        refresh().catch((err) => setStatus(err.message, true));
       }
-    });
-
-    if (sessionStorage.getItem(tokenKey)) {
-      showApp();
-      refresh().catch((err) => setStatus(err.message, true));
-    }
-  </script>
-</body>
-
+    </script>
+  </body>
 </html>
