@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eternal Data Excel</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body>
+  <header class="header">
+    <h1>Eternal Data Excel</h1>
+  </header>
+
+  <label class="field-label" for="chatSelect">Select chat to export</label>
+  <select id="chatSelect" disabled>
+    <option value="">Loading chats…</option>
+  </select>
+
+  <div class="date-row">
+    <div class="date-field">
+      <label class="field-label" for="fromDate">From</label>
+      <input type="date" id="fromDate" />
+    </div>
+    <div class="date-field">
+      <label class="field-label" for="toDate">To</label>
+      <input type="date" id="toDate" />
+    </div>
+  </div>
+
+  <label class="field-label" for="exportFormat">Export</label>
+  <select id="exportFormat" disabled>
+    <option>TXT only</option>
+  </select>
+
+  <button id="downloadBtn" class="download-btn" disabled>Download</button>
+
+  <p id="status" class="status" role="status">Open WhatsApp Web and wait for chats to load.</p>
+  <p class="hint">
+    Defaults to the past 1 month. Exports local WhatsApp Web history as a single TXT file. Media is referenced, not
+    downloaded.
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
