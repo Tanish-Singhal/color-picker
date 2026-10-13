@@ -80,6 +80,19 @@ function exportDay(value) {
   return iso.slice(0, 10);
 }
 
+const ALLOWED_MONTHS = new Set([1, 2, 3, 6, 12]);
+
+function clearTriggerFields() {
+  return {
+    export_requested: false,
+    requestSenderName: "",
+    requestChatId: "",
+    requestChatName: "",
+    requestMonths: 0,
+    updatedAt: new Date(),
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(
@@ -117,6 +130,9 @@ const server = http.createServer(async (req, res) => {
       const exportedAt = body.exportedAt || new Date().toISOString();
       const day = exportDay(exportedAt);
       const chatId = String(body.chatId);
+      if (body.replaceChat) {
+        await exportsCol.deleteMany({ senderName, chatId });
+      }
       await exportsCol.updateOne(
         { senderName, chatId, day },
         {
@@ -175,6 +191,10 @@ const server = http.createServer(async (req, res) => {
         senderStatus: doc?.senderStatus || "",
         senderAt: doc?.senderAt || "",
         senderName: doc?.senderName || "",
+        requestSenderName: doc?.requestSenderName || "",
+        requestChatId: doc?.requestChatId || "",
+        requestChatName: doc?.requestChatName || "",
+        requestMonths: Number(doc?.requestMonths) || 0,
       });
       return;
     }
@@ -197,9 +217,57 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && path === "/trigger") {
+      const body = await readBody(req);
+      const chatId = String(body.chatId || "").trim();
+      const requestSenderName = String(body.senderName || "").trim();
+      const requestChatName = String(body.chatName || "").trim();
+      const months = Number(body.months) || 0;
+
+      if (chatId) {
+        if (!requestSenderName || !ALLOWED_MONTHS.has(months)) {
+          sendJson(res, 400, {
+            ok: false,
+            error: "senderName and months (1, 2, 3, 6, or 12) are required for a single chat",
+          });
+          return;
+        }
+        await controlCol.updateOne(
+          { _id: "trigger" },
+          {
+            $set: {
+              export_requested: true,
+              requestSenderName,
+              requestChatId: chatId,
+              requestChatName,
+              requestMonths: months,
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true },
+        );
+        sendJson(res, 200, {
+          ok: true,
+          export_requested: true,
+          requestSenderName,
+          requestChatId: chatId,
+          requestChatName,
+          requestMonths: months,
+        });
+        return;
+      }
+
       await controlCol.updateOne(
         { _id: "trigger" },
-        { $set: { export_requested: true, updatedAt: new Date() } },
+        {
+          $set: {
+            export_requested: true,
+            requestSenderName: "",
+            requestChatId: "",
+            requestChatName: "",
+            requestMonths: 0,
+            updatedAt: new Date(),
+          },
+        },
         { upsert: true },
       );
       sendJson(res, 200, { ok: true, export_requested: true });
@@ -209,7 +277,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && path === "/trigger/ack") {
       await controlCol.updateOne(
         { _id: "trigger" },
-        { $set: { export_requested: false, updatedAt: new Date() } },
+        { $set: clearTriggerFields() },
         { upsert: true },
       );
       sendJson(res, 200, { ok: true, export_requested: false });

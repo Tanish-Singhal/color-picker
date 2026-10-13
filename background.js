@@ -66,11 +66,15 @@ function isoDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function twoMonthRange() {
+function monthRange(months) {
   const to = new Date();
   const from = new Date();
-  from.setMonth(from.getMonth() - 2);
+  from.setMonth(from.getMonth() - (Number(months) || 2));
   return { fromDate: isoDate(from), toDate: isoDate(to) };
+}
+
+function twoMonthRange() {
+  return monthRange(2);
 }
 
 async function getSettings() {
@@ -138,6 +142,78 @@ async function sendToWaTab(tabId, message) {
   throw lastError || new Error("WhatsApp tab did not respond.");
 }
 
+async function uploadChat(settings, tabId, chat, fromDate, toDate, replaceChat) {
+  const exported = await sendToWaTab(tabId, {
+    type: "WA_EXPORTER_EXPORT_TEXT",
+    chatId: chat.id,
+    fromDate,
+    toDate,
+    silent: true,
+  });
+  if (!exported?.ok) {
+    throw new Error(exported?.error || `Export failed for ${chat.name || chat.id}`);
+  }
+  await apiFetch(settings, "/upload", {
+    method: "POST",
+    body: JSON.stringify({
+      chatId: chat.id,
+      chatName: exported.chatName || chat.name || "",
+      senderName: settings.senderName,
+      isGroup: Boolean(chat.isGroup),
+      filename: `${exported.base}.txt`,
+      text: exported.text || "",
+      exportedAt: new Date().toISOString(),
+      fromDate,
+      toDate,
+      replaceChat: Boolean(replaceChat),
+    }),
+  });
+  return exported;
+}
+
+async function runSingleChatJob(settings, request) {
+  if (jobLock) return { ok: false, skipped: true };
+  jobLock = true;
+  try {
+    const tab = await findWaTab();
+    if (!tab?.id) throw new Error("WhatsApp Web tab is not open.");
+    await ensureContentScripts(tab.id);
+
+    const months = Number(request.requestMonths) || 2;
+    const label = request.requestChatName || request.requestChatId;
+    await reportStatus(settings, `Fetching ${label} for ${months} month${months === 1 ? "" : "s"}…`);
+
+    const { fromDate, toDate } = monthRange(months);
+    await uploadChat(
+      settings,
+      tab.id,
+      {
+        id: request.requestChatId,
+        name: request.requestChatName || request.requestChatId,
+      },
+      fromDate,
+      toDate,
+      true,
+    );
+
+    await apiFetch(settings, "/trigger/ack", { method: "POST" });
+    const message = `Uploaded ${label} (${months} month${months === 1 ? "" : "s"})`;
+    await chrome.storage.local.set({
+      lastStatus: message,
+      lastRunAt: new Date().toISOString(),
+    });
+    await reportStatus(settings, message);
+    return { ok: true, uploaded: 1 };
+  } catch (err) {
+    const message = err?.message || String(err);
+    await chrome.storage.local.set({ lastStatus: message });
+    await reportStatus(settings, message);
+    return { ok: false, error: message };
+  } finally {
+    jobLock = false;
+  }
+}
+
 async function runJob(reason) {
   if (jobLock) return { ok: false, skipped: true };
   const settings = await getSettings();
@@ -167,30 +243,7 @@ async function runJob(reason) {
     let uploaded = 0;
     for (const chat of chats) {
       await reportStatus(settings, `Exporting ${uploaded + 1}/${chats.length}: ${chat.name}`);
-      const exported = await sendToWaTab(tab.id, {
-        type: "WA_EXPORTER_EXPORT_TEXT",
-        chatId: chat.id,
-        fromDate,
-        toDate,
-        silent: true,
-      });
-      if (!exported?.ok) {
-        throw new Error(exported?.error || `Export failed for ${chat.name}`);
-      }
-      await apiFetch(settings, "/upload", {
-        method: "POST",
-        body: JSON.stringify({
-          chatId: chat.id,
-          chatName: exported.chatName || chat.name,
-          senderName: settings.senderName,
-          isGroup: Boolean(chat.isGroup),
-          filename: `${exported.base}.txt`,
-          text: exported.text || "",
-          exportedAt: new Date().toISOString(),
-          fromDate,
-          toDate,
-        }),
-      });
+      await uploadChat(settings, tab.id, chat, fromDate, toDate, false);
       uploaded += 1;
       await chrome.storage.local.set({
         lastStatus: `Uploaded ${uploaded}/${chats.length}`,
@@ -228,12 +281,11 @@ async function maybeStart() {
   }
 
   const session = await chrome.storage.session.get({ ranThisSession: false });
-  let triggered = false;
+  let trigger = null;
   if (settings.pollRemote) {
     try {
-      const data = await apiFetch(settings, "/trigger");
-      triggered = Boolean(data.export_requested);
-      if (!triggered) {
+      trigger = await apiFetch(settings, "/trigger");
+      if (!trigger.export_requested) {
         await reportStatus(settings, "Sender is connected. No pull is waiting.");
       }
     } catch (err) {
@@ -244,7 +296,18 @@ async function maybeStart() {
     }
   }
 
-  if (triggered) {
+  if (trigger?.export_requested) {
+    if (trigger.requestChatId) {
+      if (trigger.requestSenderName !== settings.senderName) {
+        await reportStatus(
+          settings,
+          `Waiting for sender “${trigger.requestSenderName || "?"}”.`,
+        );
+        return;
+      }
+      await runSingleChatJob(settings, trigger);
+      return;
+    }
     await runJob("remote");
     return;
   }

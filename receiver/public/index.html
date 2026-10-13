@@ -308,9 +308,15 @@
         padding: 10px 16px;
         background: var(--wa-panel);
         border-bottom: 1px solid var(--wa-border);
+        flex-wrap: wrap;
       }
 
       #threadHeader.visible { display: flex; }
+
+      #threadHeader .chat-meta {
+        flex: 1;
+        min-width: 120px;
+      }
 
       #threadHeader .title {
         font-size: 16px;
@@ -321,6 +327,37 @@
         color: var(--wa-muted);
         font-size: 12px;
         margin-top: 2px;
+      }
+
+      #threadHeader .fetch-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-left: auto;
+      }
+
+      #threadHeader .fetch-controls select {
+        padding: 7px 10px;
+        border: 1px solid var(--wa-border);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      #threadHeader .fetch-controls button {
+        border: none;
+        border-radius: 20px;
+        padding: 8px 14px;
+        background: var(--wa-teal);
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      #threadHeader .fetch-controls button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
       }
 
       #thread {
@@ -458,9 +495,20 @@
         <main class="pane" id="pane">
           <div id="threadHeader">
             <div class="avatar sm" id="chatAvatar">?</div>
-            <div>
+            <div class="chat-meta">
               <div class="title" id="threadTitle">Select a chat</div>
               <div class="subtitle" id="threadSubtitle"></div>
+            </div>
+            <div class="fetch-controls">
+              <label for="monthsSelect" class="sr-only">Months</label>
+              <select id="monthsSelect" aria-label="How many months">
+                <option value="1">1 month</option>
+                <option value="2" selected>2 months</option>
+                <option value="3">3 months</option>
+                <option value="6">6 months</option>
+                <option value="12">12 months</option>
+              </select>
+              <button id="fetchChatBtn" type="button">Fetch this chat</button>
             </div>
           </div>
           <div id="thread">
@@ -496,6 +544,8 @@
       const senderAvatar = document.getElementById("senderAvatar");
       const chatAvatar = document.getElementById("chatAvatar");
       const pane = document.getElementById("pane");
+      const monthsSelect = document.getElementById("monthsSelect");
+      const fetchChatBtn = document.getElementById("fetchChatBtn");
 
       const avatarColors = ["#00a884", "#53bdeb", "#06cf9c", "#a855f7", "#ea580c", "#0284c7", "#db2777"];
 
@@ -780,7 +830,11 @@
           ? ` Sender${who}: ${trigger.senderStatus}`
           : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
         if (trigger.export_requested) {
-          setStatus(`Waiting for an upload. ${count} export${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
+          const one =
+            trigger.requestChatId
+              ? ` Fetching “${trigger.requestChatName || trigger.requestChatId}” (${trigger.requestMonths || "?"} mo) for ${trigger.requestSenderName || "sender"}.`
+              : " Waiting for a full top-10 pull.";
+          setStatus(`${one} ${count} export${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
         } else {
           setStatus(
             count
@@ -789,6 +843,31 @@
           );
         }
         return trigger.export_requested;
+      }
+
+      function waitForUpload(button) {
+        clearInterval(pollTimer);
+        button.disabled = true;
+        let tries = 0;
+        pollTimer = setInterval(async () => {
+          tries += 1;
+          try {
+            const waiting = await refresh();
+            if (!waiting || tries >= 36) {
+              clearInterval(pollTimer);
+              button.disabled = false;
+              fetchChatBtn.disabled = false;
+              document.getElementById("pullBtn").disabled = false;
+              if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
+            }
+          } catch (err) {
+            clearInterval(pollTimer);
+            button.disabled = false;
+            fetchChatBtn.disabled = false;
+            document.getElementById("pullBtn").disabled = false;
+            setStatus(err.message, true);
+          }
+        }, 5000);
       }
 
       document.getElementById("gateForm").addEventListener("submit", async (event) => {
@@ -817,29 +896,47 @@
 
       document.getElementById("pullBtn").addEventListener("click", async () => {
         const button = document.getElementById("pullBtn");
-        button.disabled = true;
-        clearInterval(pollTimer);
         try {
-          await api("/trigger", { method: "POST" });
+          await api("/trigger", { method: "POST", body: "{}" });
           setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
-          let tries = 0;
-          pollTimer = setInterval(async () => {
-            tries += 1;
-            try {
-              const waiting = await refresh();
-              if (!waiting || tries >= 36) {
-                clearInterval(pollTimer);
-                button.disabled = false;
-                if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
-              }
-            } catch (err) {
-              clearInterval(pollTimer);
-              button.disabled = false;
-              setStatus(err.message, true);
-            }
-          }, 5000);
+          waitForUpload(button);
         } catch (err) {
           button.disabled = false;
+          setStatus(err.message, true);
+        }
+      });
+
+      fetchChatBtn.addEventListener("click", async () => {
+        const sender = activeSender();
+        const chat = conversations.find((item) => item.chatId === selectedChatId);
+        const months = Number(monthsSelect.value) || 2;
+        if (!sender) {
+          setStatus("Choose a sender first.", true);
+          return;
+        }
+        if (!chat) {
+          setStatus("Open a chat from the list first.", true);
+          return;
+        }
+        try {
+          fetchChatBtn.disabled = true;
+          document.getElementById("pullBtn").disabled = true;
+          await api("/trigger", {
+            method: "POST",
+            body: JSON.stringify({
+              senderName: sender,
+              chatId: chat.chatId,
+              chatName: chat.chatName,
+              months,
+            }),
+          });
+          setStatus(
+            `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${sender}. Leave WhatsApp Web open.`,
+          );
+          waitForUpload(fetchChatBtn);
+        } catch (err) {
+          fetchChatBtn.disabled = false;
+          document.getElementById("pullBtn").disabled = false;
           setStatus(err.message, true);
         }
       });
