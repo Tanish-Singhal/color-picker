@@ -11,6 +11,7 @@ const pickerStatus = document.getElementById("pickerStatus");
 
 const uploadUrlInput = document.getElementById("uploadUrl");
 const tokenInput = document.getElementById("token");
+const senderNameInput = document.getElementById("senderName");
 const autoExportInput = document.getElementById("autoExport");
 const pollRemoteInput = document.getElementById("pollRemote");
 const saveBtn = document.getElementById("saveBtn");
@@ -80,12 +81,14 @@ async function loadSettings() {
   const stored = await chrome.storage.local.get({
     uploadUrl: "",
     token: "",
+    senderName: "",
     autoExport: true,
     pollRemote: true,
     lastStatus: "",
   });
   uploadUrlInput.value = stored.uploadUrl;
   tokenInput.value = stored.token;
+  senderNameInput.value = stored.senderName;
   autoExportInput.checked = stored.autoExport !== false;
   pollRemoteInput.checked = stored.pollRemote !== false;
   if (stored.lastStatus) setSettingsStatus(stored.lastStatus);
@@ -94,8 +97,9 @@ async function loadSettings() {
 saveBtn.addEventListener("click", async () => {
   const uploadUrl = uploadUrlInput.value.trim().replace(/\/$/, "");
   const token = tokenInput.value.trim();
-  if (!uploadUrl || !token) {
-    setSettingsStatus("Upload URL and token are required.", "error");
+  const senderName = senderNameInput.value.trim();
+  if (!uploadUrl || !token || !senderName) {
+    setSettingsStatus("Upload URL, token, and sender name are required.", "error");
     return;
   }
   let pattern;
@@ -115,6 +119,7 @@ saveBtn.addEventListener("click", async () => {
   await chrome.storage.local.set({
     uploadUrl,
     token,
+    senderName,
     autoExport: autoExportInput.checked,
     pollRemote: pollRemoteInput.checked,
   });
@@ -173,7 +178,7 @@ function fillChats(chats, activeId) {
 
 async function loadChats() {
   const from = new Date();
-  from.setDate(from.getDate() - 7);
+  from.setMonth(from.getMonth() - 2);
   fromDate.value = toISODate(from);
   toDate.value = toISODate(new Date());
   setSettingsStatus("Connecting…");

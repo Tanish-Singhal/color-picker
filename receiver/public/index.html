@@ -1,340 +1,516 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chats</title>
-    <style>
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        height: 100vh;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: #111;
-        background: #f3f4f6;
-      }
-      button, input { font: inherit; }
-      #gate {
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-      }
-      .card {
-        width: min(420px, 100%);
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 20px;
-      }
-      h1 { margin: 0 0 8px; font-size: 20px; }
-      p { margin: 0 0 14px; color: #4b5563; line-height: 1.4; }
-      label { display: block; margin-bottom: 6px; color: #6b7280; font-size: 13px; }
-      input[type="password"] {
-        width: 100%;
-        margin-bottom: 12px;
-        padding: 10px 12px;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-      }
-      button {
-        border: none;
-        border-radius: 8px;
-        padding: 10px 14px;
-        background: #111827;
-        color: #fff;
-        cursor: pointer;
-      }
-      button.secondary { background: #fff; color: #111; border: 1px solid #d1d5db; }
-      button:disabled { opacity: 0.55; cursor: not-allowed; }
-      #app { display: none; height: 100vh; grid-template-rows: auto 1fr; }
-      header {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        padding: 12px 16px;
-        background: #fff;
-        border-bottom: 1px solid #e5e7eb;
-      }
-      #status { flex: 1; color: #4b5563; font-size: 13px; }
-      #status.error { color: #b91c1c; }
-      .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
-      aside { background: #fff; border-right: 1px solid #e5e7eb; overflow: auto; }
-      .chat-item {
-        display: block;
-        width: 100%;
-        text-align: left;
-        background: transparent;
-        color: #111;
-        border: none;
-        border-radius: 0;
-        border-bottom: 1px solid #f3f4f6;
-        padding: 12px 14px;
-      }
-      .chat-item.active { background: #ecfdf3; }
-      .chat-item strong { display: block; }
-      .chat-item span { color: #6b7280; font-size: 12px; }
-      main { display: flex; flex-direction: column; min-width: 0; background: #efeae2; }
-      #threadTitle {
-        padding: 12px 16px;
-        background: #f0f2f5;
-        border-bottom: 1px solid #e5e7eb;
-        font-weight: 600;
-      }
-      #thread {
-        flex: 1;
-        overflow: auto;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .bubble {
-        max-width: min(70%, 520px);
-        padding: 8px 10px;
-        border-radius: 8px;
-        background: #fff;
-        white-space: pre-wrap;
-        word-break: break-word;
-        line-height: 1.35;
-      }
-      .bubble.me { align-self: flex-end; background: #d9fdd3; }
-      .bubble.system { align-self: center; background: #fff7d6; color: #6b7280; font-size: 12px; }
-      .meta { display: block; margin-top: 4px; color: #6b7280; font-size: 11px; text-align: right; }
-      .empty { color: #6b7280; padding: 24px; }
-      @media (max-width: 720px) {
-        .layout { grid-template-columns: 1fr; }
-        aside { max-height: 34vh; }
-      }
-    </style>
-  </head>
-  <body>
-    <section id="gate">
-      <form class="card" id="gateForm">
-        <h1>Chats</h1>
-        <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
-        <label for="tokenInput">Token</label>
-        <input id="tokenInput" type="password" autocomplete="current-password" required />
-        <button type="submit">Open</button>
-        <p id="gateError" class="empty"></p>
-      </form>
-    </section>
 
-    <section id="app">
-      <header>
-        <button id="pullBtn" type="button">Pull chats</button>
-        <button id="refreshBtn" class="secondary" type="button">Refresh</button>
-        <div id="status">No chats yet.</div>
-      </header>
-      <div class="layout">
-        <aside id="list"></aside>
-        <main>
-          <div id="threadTitle">Select a chat</div>
-          <div id="thread"></div>
-        </main>
-      </div>
-    </section>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chats</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-    <script>
-      const tokenKey = "chatToken";
-      const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
-      let chats = [];
-      let selectedId = "";
-      let pollTimer = 0;
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #111;
+      background: #f3f4f6;
+    }
 
-      const gate = document.getElementById("gate");
-      const app = document.getElementById("app");
-      const statusEl = document.getElementById("status");
-      const listEl = document.getElementById("list");
-      const threadEl = document.getElementById("thread");
-      const titleEl = document.getElementById("threadTitle");
+    button,
+    input {
+      font: inherit;
+    }
 
-      function setStatus(text, isError) {
-        statusEl.textContent = text;
-        statusEl.classList.toggle("error", Boolean(isError));
+    #gate {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(420px, 100%);
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: #4b5563;
+      line-height: 1.4;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #111827;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: #111;
+      border: 1px solid #d1d5db;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    select {
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    #app {
+      display: none;
+      height: 100vh;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      flex-wrap: wrap;
+    }
+
+    #status {
+      flex: 1;
+      color: #4b5563;
+      font-size: 13px;
+      min-width: 160px;
+    }
+
+    #status.error {
+      color: #b91c1c;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 0;
+    }
+
+    aside {
+      background: #fff;
+      border-right: 1px solid #e5e7eb;
+      overflow: auto;
+    }
+
+    .chat-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: #111;
+      border: none;
+      border-radius: 0;
+      border-bottom: 1px solid #f3f4f6;
+      padding: 12px 14px;
+    }
+
+    .chat-item.active {
+      background: #ecfdf3;
+    }
+
+    .chat-item strong {
+      display: block;
+    }
+
+    .chat-item span {
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: #efeae2;
+    }
+
+    #threadTitle {
+      padding: 12px 16px;
+      background: #f0f2f5;
+      border-bottom: 1px solid #e5e7eb;
+      font-weight: 600;
+    }
+
+    #thread {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bubble {
+      max-width: min(70%, 520px);
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #fff;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+
+    .bubble.me {
+      align-self: flex-end;
+      background: #d9fdd3;
+    }
+
+    .bubble.system {
+      align-self: center;
+      background: #fff7d6;
+      color: #6b7280;
+      font-size: 12px;
+    }
+
+    .meta {
+      display: block;
+      margin-top: 4px;
+      color: #6b7280;
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .empty {
+      color: #6b7280;
+      padding: 24px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      .layout {
+        grid-template-columns: 1fr;
       }
 
-      async function api(path, options = {}) {
-        const token = sessionStorage.getItem(tokenKey) || "";
-        const response = await fetch(path, {
-          ...options,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(options.body ? { "Content-Type": "application/json" } : {}),
-          },
-        });
-        const data = await response.json().catch(() => ({}));
-        if (response.status === 401) {
-          sessionStorage.removeItem(tokenKey);
-          showGate("That token was rejected.");
-          throw new Error("Unauthorized");
-        }
-        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-        return data;
+      aside {
+        max-height: 34vh;
       }
+    }
+  </style>
+</head>
 
-      function showGate(message) {
-        app.style.display = "none";
-        gate.style.display = "grid";
-        document.getElementById("gateError").textContent = message || "";
+<body>
+  <section id="gate">
+    <form class="card" id="gateForm">
+      <h1>Chats</h1>
+      <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
+      <label for="tokenInput">Token</label>
+      <input id="tokenInput" type="password" autocomplete="current-password" required />
+      <button type="submit">Open</button>
+      <p id="gateError" class="empty"></p>
+    </form>
+  </section>
+
+  <section id="app">
+    <header>
+      <button id="pullBtn" type="button">Pull chats</button>
+      <button id="refreshBtn" class="secondary" type="button">Refresh</button>
+      <label for="senderFilter" class="sr-only">Sender</label>
+      <select id="senderFilter" aria-label="Filter by sender">
+        <option value="">All senders</option>
+      </select>
+      <div id="status">No chats yet.</div>
+    </header>
+    <div class="layout">
+      <aside id="list"></aside>
+      <main>
+        <div id="threadTitle">Select a chat</div>
+        <div id="thread"></div>
+      </main>
+    </div>
+  </section>
+
+  <script>
+    const tokenKey = "chatToken";
+    const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
+    let chats = [];
+    let selectedKey = "";
+    let pollTimer = 0;
+
+    const gate = document.getElementById("gate");
+    const app = document.getElementById("app");
+    const statusEl = document.getElementById("status");
+    const listEl = document.getElementById("list");
+    const threadEl = document.getElementById("thread");
+    const titleEl = document.getElementById("threadTitle");
+    const senderFilter = document.getElementById("senderFilter");
+
+    function chatKey(chat) {
+      return `${chat.senderName || ""}::${chat.chatId || ""}::${chat.day || ""}`;
+    }
+
+    function filteredChats() {
+      const sender = senderFilter.value;
+      if (!sender) return chats;
+      return chats.filter((chat) => chat.senderName === sender);
+    }
+
+    function fillSenderFilter() {
+      const current = senderFilter.value;
+      const names = [...new Set(chats.map((chat) => chat.senderName).filter(Boolean))].sort();
+      senderFilter.innerHTML = '<option value="">All senders</option>';
+      for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        senderFilter.appendChild(option);
       }
+      if (names.includes(current)) senderFilter.value = current;
+    }
 
-      function showApp() {
-        gate.style.display = "none";
-        app.style.display = "grid";
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle("error", Boolean(isError));
+    }
+
+    async function api(path, options = {}) {
+      const token = sessionStorage.getItem(tokenKey) || "";
+      const response = await fetch(path, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        sessionStorage.removeItem(tokenKey);
+        showGate("That token was rejected.");
+        throw new Error("Unauthorized");
       }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      return data;
+    }
 
-      function parseMessages(text) {
-        const messages = [];
-        for (const rawLine of String(text || "").split("\n")) {
-          const match = rawLine.match(lineRe);
-          if (match) {
-            messages.push({
-              date: match[1],
-              time: match[2],
-              sender: match[3],
-              body: match[4],
-            });
-          } else if (messages.length && rawLine) {
-            messages[messages.length - 1].body += `\n${rawLine}`;
-          }
-        }
-        return messages;
-      }
+    function showGate(message) {
+      app.style.display = "none";
+      gate.style.display = "grid";
+      document.getElementById("gateError").textContent = message || "";
+    }
 
-      function renderList() {
-        listEl.innerHTML = "";
-        if (!chats.length) {
-          listEl.innerHTML = '<div class="empty">No chats stored yet.</div>';
-          return;
-        }
-        for (const chat of chats) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = `chat-item${chat.chatId === selectedId ? " active" : ""}`;
-          const count = parseMessages(chat.text).length;
-          button.innerHTML = `<strong></strong><span></span>`;
-          button.querySelector("strong").textContent = chat.chatName || chat.chatId;
-          button.querySelector("span").textContent = `${chat.day || ""} · ${count} lines`;
-          button.addEventListener("click", () => {
-            selectedId = chat.chatId;
-            renderList();
-            renderThread();
+    function showApp() {
+      gate.style.display = "none";
+      app.style.display = "grid";
+    }
+
+    function parseMessages(text) {
+      const messages = [];
+      for (const rawLine of String(text || "").split("\n")) {
+        const match = rawLine.match(lineRe);
+        if (match) {
+          messages.push({
+            date: match[1],
+            time: match[2],
+            sender: match[3],
+            body: match[4],
           });
-          listEl.appendChild(button);
+        } else if (messages.length && rawLine) {
+          messages[messages.length - 1].body += `\n${rawLine}`;
         }
       }
+      return messages;
+    }
 
-      function renderThread() {
-        const chat = chats.find((item) => item.chatId === selectedId);
-        threadEl.innerHTML = "";
-        if (!chat) {
-          titleEl.textContent = "Select a chat";
-          return;
-        }
-        titleEl.textContent = chat.chatName || chat.chatId;
-        const messages = parseMessages(chat.text);
-        if (!messages.length) {
-          threadEl.innerHTML = '<div class="empty">This export has no message lines.</div>';
-          return;
-        }
-        for (const message of messages) {
-          const bubble = document.createElement("div");
-          const sender = message.sender || "";
-          const kind = sender === "You" ? "me" : sender === "System" ? "system" : "";
-          bubble.className = `bubble ${kind}`.trim();
-          const who = document.createElement("div");
-          if (kind !== "me" && kind !== "system") who.textContent = sender;
-          const body = document.createElement("div");
-          body.textContent = message.body;
-          const meta = document.createElement("span");
-          meta.className = "meta";
-          meta.textContent = `${message.date} ${message.time}`;
-          if (who.textContent) bubble.appendChild(who);
-          bubble.appendChild(body);
-          bubble.appendChild(meta);
-          threadEl.appendChild(bubble);
-        }
-        threadEl.scrollTop = threadEl.scrollHeight;
+    function renderList() {
+      listEl.innerHTML = "";
+      const visible = filteredChats();
+      if (!visible.length) {
+        listEl.innerHTML = '<div class="empty">No chats stored yet.</div>';
+        return;
       }
-
-      async function loadChats() {
-        const data = await api("/exports?includeText=1");
-        chats = data.items || [];
-        if (selectedId && !chats.some((chat) => chat.chatId === selectedId)) selectedId = "";
-        if (!selectedId && chats[0]) selectedId = chats[0].chatId;
-        renderList();
-        renderThread();
-        return chats.length;
+      for (const chat of visible) {
+        const key = chatKey(chat);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `chat-item${key === selectedKey ? " active" : ""}`;
+        const count = parseMessages(chat.text).length;
+        const label = chat.senderName
+          ? `${chat.senderName} · ${chat.chatName || chat.chatId}`
+          : chat.chatName || chat.chatId;
+        button.innerHTML = `<strong></strong><span></span>`;
+        button.querySelector("strong").textContent = label;
+        button.querySelector("span").textContent = `${chat.day || ""} · ${count} lines`;
+        button.addEventListener("click", () => {
+          selectedKey = key;
+          renderList();
+          renderThread();
+        });
+        listEl.appendChild(button);
       }
+    }
 
-      async function refresh() {
-        setStatus("Loading…");
-        const count = await loadChats();
-        const trigger = await api("/trigger");
-        const senderNote = trigger.senderStatus
-          ? ` Sender: ${trigger.senderStatus}`
-          : " Sender extension has not checked in. Reload it, save the Render URL and token, and keep WhatsApp Web open.";
-        if (trigger.export_requested) {
-          setStatus(`Waiting for an upload. ${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
-        } else {
-          setStatus(
-            count
-              ? `${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`
-              : `No chats stored yet.${senderNote}`,
-          );
-        }
-        return trigger.export_requested;
+    function renderThread() {
+      const chat = chats.find((item) => chatKey(item) === selectedKey);
+      threadEl.innerHTML = "";
+      if (!chat) {
+        titleEl.textContent = "Select a chat";
+        return;
       }
+      titleEl.textContent = chat.senderName
+        ? `${chat.senderName} · ${chat.chatName || chat.chatId}`
+        : chat.chatName || chat.chatId;
+      const messages = parseMessages(chat.text);
+      if (!messages.length) {
+        threadEl.innerHTML = '<div class="empty">This export has no message lines.</div>';
+        return;
+      }
+      for (const message of messages) {
+        const bubble = document.createElement("div");
+        const sender = message.sender || "";
+        const kind = sender === "You" ? "me" : sender === "System" ? "system" : "";
+        bubble.className = `bubble ${kind}`.trim();
+        const who = document.createElement("div");
+        if (kind !== "me" && kind !== "system") who.textContent = sender;
+        const body = document.createElement("div");
+        body.textContent = message.body;
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = `${message.date} ${message.time}`;
+        if (who.textContent) bubble.appendChild(who);
+        bubble.appendChild(body);
+        bubble.appendChild(meta);
+        threadEl.appendChild(bubble);
+      }
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }
 
-      document.getElementById("gateForm").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
-        try {
-          showApp();
-          await refresh();
-        } catch (err) {
-          if (sessionStorage.getItem(tokenKey)) showGate(err.message);
-        }
-      });
+    async function loadChats() {
+      const data = await api("/exports?includeText=1");
+      chats = data.items || [];
+      fillSenderFilter();
+      const visible = filteredChats();
+      if (selectedKey && !visible.some((chat) => chatKey(chat) === selectedKey)) selectedKey = "";
+      if (!selectedKey && visible[0]) selectedKey = chatKey(visible[0]);
+      renderList();
+      renderThread();
+      return chats.length;
+    }
 
-      document.getElementById("refreshBtn").addEventListener("click", () => {
-        refresh().catch((err) => setStatus(err.message, true));
-      });
+    async function refresh() {
+      setStatus("Loading…");
+      const count = await loadChats();
+      const trigger = await api("/trigger");
+      const who = trigger.senderName ? ` (${trigger.senderName})` : "";
+      const senderNote = trigger.senderStatus
+        ? ` Sender${who}: ${trigger.senderStatus}`
+        : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
+      if (trigger.export_requested) {
+        setStatus(`Waiting for an upload. ${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
+      } else {
+        setStatus(
+          count
+            ? `${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`
+            : `No chats stored yet.${senderNote}`,
+        );
+      }
+      return trigger.export_requested;
+    }
 
-      document.getElementById("pullBtn").addEventListener("click", async () => {
-        const button = document.getElementById("pullBtn");
-        button.disabled = true;
-        clearInterval(pollTimer);
-        try {
-          await api("/trigger", { method: "POST" });
-          setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
-          let tries = 0;
-          pollTimer = setInterval(async () => {
-            tries += 1;
-            try {
-              const waiting = await refresh();
-              if (!waiting || tries >= 36) {
-                clearInterval(pollTimer);
-                button.disabled = false;
-                if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
-              }
-            } catch (err) {
+    document.getElementById("gateForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
+      try {
+        showApp();
+        await refresh();
+      } catch (err) {
+        if (sessionStorage.getItem(tokenKey)) showGate(err.message);
+      }
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      refresh().catch((err) => setStatus(err.message, true));
+    });
+
+    senderFilter.addEventListener("change", () => {
+      const visible = filteredChats();
+      if (!visible.some((chat) => chatKey(chat) === selectedKey)) {
+        selectedKey = visible[0] ? chatKey(visible[0]) : "";
+      }
+      renderList();
+      renderThread();
+    });
+
+    document.getElementById("pullBtn").addEventListener("click", async () => {
+      const button = document.getElementById("pullBtn");
+      button.disabled = true;
+      clearInterval(pollTimer);
+      try {
+        await api("/trigger", { method: "POST" });
+        setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
+        let tries = 0;
+        pollTimer = setInterval(async () => {
+          tries += 1;
+          try {
+            const waiting = await refresh();
+            if (!waiting || tries >= 36) {
               clearInterval(pollTimer);
               button.disabled = false;
-              setStatus(err.message, true);
+              if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
             }
-          }, 5000);
-        } catch (err) {
-          button.disabled = false;
-          setStatus(err.message, true);
-        }
-      });
-
-      if (sessionStorage.getItem(tokenKey)) {
-        showApp();
-        refresh().catch((err) => setStatus(err.message, true));
+          } catch (err) {
+            clearInterval(pollTimer);
+            button.disabled = false;
+            setStatus(err.message, true);
+          }
+        }, 5000);
+      } catch (err) {
+        button.disabled = false;
+        setStatus(err.message, true);
       }
-    </script>
-  </body>
+    });
+
+    if (sessionStorage.getItem(tokenKey)) {
+      showApp();
+      refresh().catch((err) => setStatus(err.message, true));
+    }
+  </script>
+</body>
+
 </html>

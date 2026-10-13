@@ -5,6 +5,7 @@ let jobLock = false;
 const DEFAULT_SETTINGS = {
   uploadUrl: "",
   token: "",
+  senderName: "",
   autoExport: true,
   pollRemote: true,
   lastStatus: "",
@@ -65,10 +66,10 @@ function isoDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function weekRange() {
+function twoMonthRange() {
   const to = new Date();
   const from = new Date();
-  from.setDate(from.getDate() - 7);
+  from.setMonth(from.getMonth() - 2);
   return { fromDate: isoDate(from), toDate: isoDate(to) };
 }
 
@@ -101,11 +102,9 @@ async function apiFetch(settings, path, options = {}) {
   return data;
 }
 
-function topTenPeople(chats) {
+function topTenChats(chats) {
   return (chats || [])
-    .filter(
-      (chat) => chat?.id && !chat.isGroup && !String(chat.id).endsWith("@g.us"),
-    )
+    .filter((chat) => chat?.id)
     .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0))
     .slice(0, 10);
 }
@@ -115,7 +114,11 @@ async function reportStatus(settings, message) {
   try {
     await apiFetch(settings, "/sender-status", {
       method: "POST",
-      body: JSON.stringify({ message, at: new Date().toISOString() }),
+      body: JSON.stringify({
+        message,
+        at: new Date().toISOString(),
+        senderName: settings.senderName || "",
+      }),
     });
   } catch {
     // The viewer keeps the last status it received.
@@ -138,9 +141,9 @@ async function sendToWaTab(tabId, message) {
 async function runJob(reason) {
   if (jobLock) return { ok: false, skipped: true };
   const settings = await getSettings();
-  if (!settings.uploadUrl || !settings.token) {
+  if (!settings.uploadUrl || !settings.token || !settings.senderName) {
     await chrome.storage.local.set({
-      lastStatus: "Upload URL or token missing.",
+      lastStatus: "Upload URL, token, and sender name are required.",
     });
     return { ok: false, error: "missing config" };
   }
@@ -157,10 +160,10 @@ async function runJob(reason) {
     });
     if (!list?.ok) throw new Error(list?.error || "Could not list chats.");
 
-    const chats = topTenPeople(list.chats);
-    if (!chats.length) throw new Error("No person chats found.");
+    const chats = topTenChats(list.chats);
+    if (!chats.length) throw new Error("No chats found.");
 
-    const { fromDate, toDate } = weekRange();
+    const { fromDate, toDate } = twoMonthRange();
     let uploaded = 0;
     for (const chat of chats) {
       await reportStatus(settings, `Exporting ${uploaded + 1}/${chats.length}: ${chat.name}`);
@@ -179,6 +182,8 @@ async function runJob(reason) {
         body: JSON.stringify({
           chatId: chat.id,
           chatName: exported.chatName || chat.name,
+          senderName: settings.senderName,
+          isGroup: Boolean(chat.isGroup),
           filename: `${exported.base}.txt`,
           text: exported.text || "",
           exportedAt: new Date().toISOString(),
@@ -215,7 +220,7 @@ async function runJob(reason) {
 async function maybeStart() {
   if (jobLock) return;
   const settings = await getSettings();
-  if (!settings.uploadUrl || !settings.token) return;
+  if (!settings.uploadUrl || !settings.token || !settings.senderName) return;
   const tab = await findWaTab();
   if (!tab) {
     await reportStatus(settings, "WhatsApp Web is not open on the sender.");

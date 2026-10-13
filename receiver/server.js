@@ -23,7 +23,15 @@ await client.connect();
 const db = client.db();
 const exportsCol = db.collection("exports");
 const controlCol = db.collection("control");
-await exportsCol.createIndex({ chatId: 1, day: 1 }, { unique: true });
+await exportsCol.createIndex(
+  { senderName: 1, chatId: 1, day: 1 },
+  { unique: true },
+);
+try {
+  await exportsCol.dropIndex("chatId_1_day_1");
+} catch {
+  // Old unique key may already be gone.
+}
 
 function authorized(req) {
   return req.headers.authorization === `Bearer ${TOKEN}`;
@@ -74,7 +82,10 @@ function exportDay(value) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    const url = new URL(
+      req.url || "/",
+      `http://${req.headers.host || "localhost"}`,
+    );
     const path = url.pathname.replace(/\/$/, "") || "/";
 
     if (req.method === "GET" && path === "/health") {
@@ -95,18 +106,25 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && path === "/upload") {
       const body = await readBody(req);
-      if (!body.chatId || typeof body.text !== "string") {
-        sendJson(res, 400, { ok: false, error: "chatId and text are required" });
+      const senderName = String(body.senderName || "").trim();
+      if (!body.chatId || typeof body.text !== "string" || !senderName) {
+        sendJson(res, 400, {
+          ok: false,
+          error: "chatId, text, and senderName are required",
+        });
         return;
       }
       const exportedAt = body.exportedAt || new Date().toISOString();
       const day = exportDay(exportedAt);
+      const chatId = String(body.chatId);
       await exportsCol.updateOne(
-        { chatId: String(body.chatId), day },
+        { senderName, chatId, day },
         {
           $set: {
-            chatId: String(body.chatId),
+            senderName,
+            chatId,
             chatName: String(body.chatName || ""),
+            isGroup: Boolean(body.isGroup),
             filename: String(body.filename || ""),
             text: body.text,
             exportedAt,
@@ -118,17 +136,23 @@ const server = http.createServer(async (req, res) => {
         },
         { upsert: true },
       );
-      sendJson(res, 200, { ok: true, chatId: body.chatId, day });
+      sendJson(res, 200, { ok: true, senderName, chatId, day });
       return;
     }
 
     if (req.method === "GET" && path === "/exports") {
       const includeText = url.searchParams.get("includeText") === "1";
-      const docs = await exportsCol.find({}).sort({ updatedAt: -1 }).limit(50).toArray();
+      const docs = await exportsCol
+        .find({})
+        .sort({ updatedAt: -1 })
+        .limit(100)
+        .toArray();
       const items = docs.map((doc) => {
         const item = {
+          senderName: doc.senderName || "",
           chatId: doc.chatId,
           chatName: doc.chatName,
+          isGroup: Boolean(doc.isGroup),
           filename: doc.filename,
           exportedAt: doc.exportedAt,
           fromDate: doc.fromDate,
@@ -150,6 +174,7 @@ const server = http.createServer(async (req, res) => {
         export_requested: Boolean(doc?.export_requested),
         senderStatus: doc?.senderStatus || "",
         senderAt: doc?.senderAt || "",
+        senderName: doc?.senderName || "",
       });
       return;
     }
@@ -162,6 +187,7 @@ const server = http.createServer(async (req, res) => {
           $set: {
             senderStatus: String(body.message || ""),
             senderAt: body.at || new Date().toISOString(),
+            senderName: String(body.senderName || "").trim(),
           },
         },
         { upsert: true },
