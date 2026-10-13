@@ -146,7 +146,27 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && path === "/trigger") {
       const doc = await controlCol.findOne({ _id: "trigger" });
-      sendJson(res, 200, { export_requested: Boolean(doc?.export_requested) });
+      sendJson(res, 200, {
+        export_requested: Boolean(doc?.export_requested),
+        senderStatus: doc?.senderStatus || "",
+        senderAt: doc?.senderAt || "",
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/sender-status") {
+      const body = await readBody(req);
+      await controlCol.updateOne(
+        { _id: "trigger" },
+        {
+          $set: {
+            senderStatus: String(body.message || ""),
+            senderAt: body.at || new Date().toISOString(),
+          },
+        },
+        { upsert: true },
+      );
+      sendJson(res, 200, { ok: true });
       return;
     }
 

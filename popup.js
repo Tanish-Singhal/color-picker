@@ -173,7 +173,7 @@ function fillChats(chats, activeId) {
 
 async function loadChats() {
   const from = new Date();
-  from.setMonth(from.getMonth() - 1);
+  from.setDate(from.getDate() - 7);
   fromDate.value = toISODate(from);
   toDate.value = toISODate(new Date());
   setSettingsStatus("Connecting…");

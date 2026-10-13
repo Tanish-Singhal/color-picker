@@ -65,10 +65,10 @@ function isoDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function monthRange() {
+function weekRange() {
   const to = new Date();
   const from = new Date();
-  from.setMonth(from.getMonth() - 1);
+  from.setDate(from.getDate() - 7);
   return { fromDate: isoDate(from), toDate: isoDate(to) };
 }
 
@@ -110,6 +110,31 @@ function topTenPeople(chats) {
     .slice(0, 10);
 }
 
+async function reportStatus(settings, message) {
+  if (!settings?.uploadUrl || !settings?.token) return;
+  try {
+    await apiFetch(settings, "/sender-status", {
+      method: "POST",
+      body: JSON.stringify({ message, at: new Date().toISOString() }),
+    });
+  } catch {
+    // The viewer keeps the last status it received.
+  }
+}
+
+async function sendToWaTab(tabId, message) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (err) {
+      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+  throw lastError || new Error("WhatsApp tab did not respond.");
+}
+
 async function runJob(reason) {
   if (jobLock) return { ok: false, skipped: true };
   const settings = await getSettings();
@@ -125,8 +150,9 @@ async function runJob(reason) {
     const tab = await findWaTab();
     if (!tab?.id) throw new Error("WhatsApp Web tab is not open.");
     await ensureContentScripts(tab.id);
+    await reportStatus(settings, "Reading the 10 most recent chats…");
 
-    const list = await chrome.tabs.sendMessage(tab.id, {
+    const list = await sendToWaTab(tab.id, {
       type: "WA_EXPORTER_LIST_CHATS",
     });
     if (!list?.ok) throw new Error(list?.error || "Could not list chats.");
@@ -134,10 +160,11 @@ async function runJob(reason) {
     const chats = topTenPeople(list.chats);
     if (!chats.length) throw new Error("No person chats found.");
 
-    const { fromDate, toDate } = monthRange();
+    const { fromDate, toDate } = weekRange();
     let uploaded = 0;
     for (const chat of chats) {
-      const exported = await chrome.tabs.sendMessage(tab.id, {
+      await reportStatus(settings, `Exporting ${uploaded + 1}/${chats.length}: ${chat.name}`);
+      const exported = await sendToWaTab(tab.id, {
         type: "WA_EXPORTER_EXPORT_TEXT",
         chatId: chat.id,
         fromDate,
@@ -176,8 +203,10 @@ async function runJob(reason) {
     });
     return { ok: true, uploaded };
   } catch (err) {
-    await chrome.storage.local.set({ lastStatus: err?.message || String(err) });
-    return { ok: false, error: err?.message || String(err) };
+    const message = err?.message || String(err);
+    await chrome.storage.local.set({ lastStatus: message });
+    await reportStatus(settings, message);
+    return { ok: false, error: message };
   } finally {
     jobLock = false;
   }
@@ -188,7 +217,10 @@ async function maybeStart() {
   const settings = await getSettings();
   if (!settings.uploadUrl || !settings.token) return;
   const tab = await findWaTab();
-  if (!tab) return;
+  if (!tab) {
+    await reportStatus(settings, "WhatsApp Web is not open on the sender.");
+    return;
+  }
 
   const session = await chrome.storage.session.get({ ranThisSession: false });
   let triggered = false;
@@ -196,8 +228,14 @@ async function maybeStart() {
     try {
       const data = await apiFetch(settings, "/trigger");
       triggered = Boolean(data.export_requested);
-    } catch {
-      triggered = false;
+      if (!triggered) {
+        await reportStatus(settings, "Sender is connected. No pull is waiting.");
+      }
+    } catch (err) {
+      await chrome.storage.local.set({
+        lastStatus: err?.message || "Could not reach the receiver.",
+      });
+      return;
     }
   }
 

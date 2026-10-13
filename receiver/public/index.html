@@ -272,10 +272,17 @@
         setStatus("Loading…");
         const count = await loadChats();
         const trigger = await api("/trigger");
+        const senderNote = trigger.senderStatus
+          ? ` Sender: ${trigger.senderStatus}`
+          : " Sender extension has not checked in. Reload it, save the Render URL and token, and keep WhatsApp Web open.";
         if (trigger.export_requested) {
-          setStatus(`Waiting for the sender. ${count} chat${count === 1 ? "" : "s"} stored so far.`);
+          setStatus(`Waiting for an upload. ${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
         } else {
-          setStatus(count ? `${count} chat${count === 1 ? "" : "s"} stored.` : "No chats stored yet.");
+          setStatus(
+            count
+              ? `${count} chat${count === 1 ? "" : "s"} stored.${senderNote}`
+              : `No chats stored yet.${senderNote}`,
+          );
         }
         return trigger.export_requested;
       }
