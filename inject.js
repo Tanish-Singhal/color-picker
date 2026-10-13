@@ -176,6 +176,17 @@
     }
   }
 
+  function chatLastTs(chat) {
+    const direct = chat?.t ?? chat?.timestamp ?? chat?.conversationTimestamp;
+    if (typeof direct === "number" && direct > 0) return direct;
+    let max = 0;
+    for (const msg of msgModelsFromChat(chat)) {
+      const t = msgTimestamp(msg);
+      if (t > max) max = t;
+    }
+    return max;
+  }
+
   function listChats() {
     const store = buildStore();
     const models = chatModels(store);
@@ -186,6 +197,7 @@
         name: chatName(chat),
         isGroup: isGroupChat(chat),
         active: chatId(chat) === activeId,
+        lastTs: chatLastTs(chat),
       }))
       .filter((c) => c.id)
       .sort((a, b) => a.name.localeCompare(b.name));

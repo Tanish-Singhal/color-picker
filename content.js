@@ -57,6 +57,11 @@
     if (!data || data.channel !== CHANNEL || data.source !== SOURCE_INJECT)
       return;
 
+    if (data.type === "READY") {
+      chrome.runtime.sendMessage({ type: "WA_READY" }).catch(() => {});
+      return;
+    }
+
     if (data.type === "PROGRESS") {
       const entry = pending.get(data.requestId);
       if (entry?.onProgress) entry.onProgress(data.text || "");
@@ -198,9 +203,14 @@
       return true;
     }
 
-    if (message.type === "WA_EXPORTER_EXPORT") {
-      const { chatId, fromDate, toDate } = message;
+    if (
+      message.type === "WA_EXPORTER_EXPORT_TEXT" ||
+      message.type === "WA_EXPORTER_EXPORT"
+    ) {
+      const { chatId, fromDate, toDate, silent } = message;
+      const uploadOnly = message.type === "WA_EXPORTER_EXPORT_TEXT";
       callInject("EXPORT_CHAT", { chatId, fromDate, toDate }, (text) => {
+        if (silent || uploadOnly) return;
         try {
           chrome.runtime.sendMessage({
             type: "WA_EXPORTER_PROGRESS",
@@ -211,6 +221,20 @@
         }
       })
         .then(async (data) => {
+          const base = `${sanitizeFilename(data.result.chatName)}_${todayStamp()}`;
+          const text = buildTxt(data.result.messages || []);
+          const count =
+            data.result.messageCount || data.result.messages?.length || 0;
+          if (uploadOnly) {
+            sendResponse({
+              ok: true,
+              text,
+              base,
+              count,
+              chatName: data.result.chatName,
+            });
+            return;
+          }
           const downloaded = await downloadTxt(data.result);
           sendResponse({
             ok: true,
@@ -223,4 +247,14 @@
       return true;
     }
   });
+
+  setTimeout(() => {
+    callInject("STATUS")
+      .then((data) => {
+        if (data?.ok || data?.ready) {
+          chrome.runtime.sendMessage({ type: "WA_READY" }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, 2000);
 })();

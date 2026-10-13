@@ -1,0 +1,14 @@
+{
+  "name": "color-picker-receiver",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.16.0"
+  }
+}

