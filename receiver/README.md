@@ -26,9 +26,13 @@ Set `TOKEN` and `MONGODB_URI` in the service environment. Start command: `npm st
 
 Free instances sleep when idle. Polling from the extension wakes them while WhatsApp Web is open. Documents stay in MongoDB across restarts.
 
+## Viewer
+
+Open the service URL in a browser. Enter the token, then use **Pull chats**. The sender must have WhatsApp Web open. Stored chats open in the list on the left.
+
 ## Routes
 
-All routes except `GET /health` require the bearer token.
+`GET /` is the chat viewer. All other routes except `GET /health` require the bearer token.
 
 - `GET /health`
 - `POST /upload` — JSON `{ chatId, chatName, filename, text, exportedAt, fromDate, toDate }`

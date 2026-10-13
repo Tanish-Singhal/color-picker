@@ -1,5 +1,12 @@
 import http from "node:http";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { MongoClient } from "mongodb";
+
+const pageHtml = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "public", "index.html"),
+);
 
 const PORT = Number(process.env.PORT || 8787);
 const TOKEN = process.env.TOKEN || "";
@@ -72,6 +79,12 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && path === "/health") {
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(pageHtml);
       return;
     }
 
