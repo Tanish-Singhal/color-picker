@@ -387,6 +387,17 @@
     return msg.attributes?.[key];
   }
 
+  function isFromMe(msg) {
+    const direct = msgAttr(msg, "fromMe");
+    if (direct === true || direct === false) return direct;
+    const id =
+      msg?.id || (typeof msg?.get === "function" ? msg.get("id") : null);
+    if (id && typeof id === "object" && typeof id.fromMe === "boolean") {
+      return id.fromMe;
+    }
+    return Boolean(direct);
+  }
+
   function senderName(msg, chat) {
     const type = msgAttr(msg, "type");
     if (
@@ -396,7 +407,7 @@
     ) {
       return "System";
     }
-    if (msgAttr(msg, "fromMe")) {
+    if (isFromMe(msg)) {
       return "You";
     }
     const author = msgAttr(msg, "author") || msgAttr(msg, "from");
@@ -446,7 +457,7 @@
       subtype === "miss" ||
       /miss/i.test(subtype),
     );
-    const outgoing = Boolean(msgAttr(msg, "fromMe"));
+    const outgoing = isFromMe(msg);
     const kind = isVideo ? "video call" : "voice call";
     let line = missed
       ? `Missed ${kind}`
@@ -498,7 +509,7 @@
       body: "",
       media_filename: "",
       media_mime: msgAttr(msg, "mimetype") || "",
-      is_from_me: Boolean(msgAttr(msg, "fromMe")),
+      is_from_me: isFromMe(msg),
     };
 
     switch (type) {
