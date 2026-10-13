@@ -23,10 +23,12 @@ await client.connect();
 const db = client.db();
 const exportsCol = db.collection("exports");
 const controlCol = db.collection("control");
+const rostersCol = db.collection("rosters");
 await exportsCol.createIndex(
   { senderName: 1, chatId: 1, day: 1 },
   { unique: true },
 );
+await rostersCol.createIndex({ senderName: 1 }, { unique: true });
 try {
   await exportsCol.dropIndex("chatId_1_day_1");
 } catch {
@@ -156,12 +158,79 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && path === "/roster") {
+      const body = await readBody(req);
+      const senderName = String(body.senderName || "").trim();
+      if (!senderName || !Array.isArray(body.chats)) {
+        sendJson(res, 400, {
+          ok: false,
+          error: "senderName and chats[] are required",
+        });
+        return;
+      }
+      const chats = body.chats
+        .map((chat) => ({
+          chatId: String(chat.chatId || chat.id || "").trim(),
+          chatName: String(chat.chatName || chat.name || "").trim(),
+          isGroup: Boolean(chat.isGroup),
+          lastTs: Number(chat.lastTs) || 0,
+        }))
+        .filter((chat) => chat.chatId);
+      await rostersCol.updateOne(
+        { senderName },
+        {
+          $set: {
+            senderName,
+            chats,
+            updatedAt: new Date(),
+            chatCount: chats.length,
+          },
+        },
+        { upsert: true },
+      );
+      sendJson(res, 200, { ok: true, senderName, chatCount: chats.length });
+      return;
+    }
+
+    if (req.method === "GET" && path === "/roster") {
+      const senderName = String(url.searchParams.get("senderName") || "").trim();
+      if (!senderName) {
+        const docs = await rostersCol
+          .find({}, { projection: { senderName: 1, chatCount: 1, updatedAt: 1 } })
+          .sort({ senderName: 1 })
+          .toArray();
+        sendJson(res, 200, {
+          ok: true,
+          senders: docs.map((doc) => ({
+            senderName: doc.senderName,
+            chatCount: doc.chatCount || (doc.chats || []).length || 0,
+            updatedAt: doc.updatedAt,
+          })),
+        });
+        return;
+      }
+      const doc = await rostersCol.findOne({ senderName });
+      sendJson(res, 200, {
+        ok: true,
+        senderName,
+        chats: doc?.chats || [],
+        updatedAt: doc?.updatedAt || null,
+      });
+      return;
+    }
+
     if (req.method === "GET" && path === "/exports") {
       const includeText = url.searchParams.get("includeText") === "1";
+      const senderName = String(url.searchParams.get("senderName") || "").trim();
+      const chatId = String(url.searchParams.get("chatId") || "").trim();
+      const filter = {};
+      if (senderName) filter.senderName = senderName;
+      if (chatId) filter.chatId = chatId;
+      const allowText = includeText && Boolean(chatId);
       const docs = await exportsCol
-        .find({})
+        .find(filter)
         .sort({ updatedAt: -1 })
-        .limit(100)
+        .limit(chatId ? 20 : 100)
         .toArray();
       const items = docs.map((doc) => {
         const item = {
@@ -177,7 +246,7 @@ const server = http.createServer(async (req, res) => {
           updatedAt: doc.updatedAt,
           textBytes: (doc.text || "").length,
         };
-        if (includeText) item.text = doc.text || "";
+        if (allowText) item.text = doc.text || "";
         return item;
       });
       sendJson(res, 200, { ok: true, items });

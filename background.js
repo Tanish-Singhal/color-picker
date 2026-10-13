@@ -73,10 +73,6 @@ function monthRange(months) {
   return { fromDate: isoDate(from), toDate: isoDate(to) };
 }
 
-function twoMonthRange() {
-  return monthRange(2);
-}
-
 async function getSettings() {
   return chrome.storage.local.get(DEFAULT_SETTINGS);
 }
@@ -104,13 +100,6 @@ async function apiFetch(settings, path, options = {}) {
     throw new Error(data.error || `Request failed (${response.status})`);
   }
   return data;
-}
-
-function topTenChats(chats) {
-  return (chats || [])
-    .filter((chat) => chat?.id)
-    .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0))
-    .slice(0, 10);
 }
 
 async function reportStatus(settings, message) {
@@ -214,7 +203,7 @@ async function runSingleChatJob(settings, request) {
   }
 }
 
-async function runJob(reason) {
+async function runRosterJob(reason) {
   if (jobLock) return { ok: false, skipped: true };
   const settings = await getSettings();
   if (!settings.uploadUrl || !settings.token || !settings.senderName) {
@@ -229,37 +218,42 @@ async function runJob(reason) {
     const tab = await findWaTab();
     if (!tab?.id) throw new Error("WhatsApp Web tab is not open.");
     await ensureContentScripts(tab.id);
-    await reportStatus(settings, "Reading the 10 most recent chats…");
+    await reportStatus(settings, "Syncing people list…");
 
     const list = await sendToWaTab(tab.id, {
       type: "WA_EXPORTER_LIST_CHATS",
     });
     if (!list?.ok) throw new Error(list?.error || "Could not list chats.");
 
-    const chats = topTenChats(list.chats);
+    const chats = (list.chats || [])
+      .filter((chat) => chat?.id)
+      .map((chat) => ({
+        chatId: chat.id,
+        chatName: chat.name || chat.id,
+        isGroup: Boolean(chat.isGroup),
+        lastTs: Number(chat.lastTs) || 0,
+      }));
     if (!chats.length) throw new Error("No chats found.");
 
-    const { fromDate, toDate } = twoMonthRange();
-    let uploaded = 0;
-    for (const chat of chats) {
-      await reportStatus(settings, `Exporting ${uploaded + 1}/${chats.length}: ${chat.name}`);
-      await uploadChat(settings, tab.id, chat, fromDate, toDate, false);
-      uploaded += 1;
-      await chrome.storage.local.set({
-        lastStatus: `Uploaded ${uploaded}/${chats.length}`,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
+    await apiFetch(settings, "/roster", {
+      method: "POST",
+      body: JSON.stringify({
+        senderName: settings.senderName,
+        chats,
+      }),
+    });
 
     await chrome.storage.session.set({ ranThisSession: true });
     if (reason === "remote") {
       await apiFetch(settings, "/trigger/ack", { method: "POST" });
     }
+    const message = `Synced ${chats.length} people`;
     await chrome.storage.local.set({
-      lastStatus: `Uploaded ${uploaded}/${chats.length} chats`,
+      lastStatus: message,
       lastRunAt: new Date().toISOString(),
     });
-    return { ok: true, uploaded };
+    await reportStatus(settings, message);
+    return { ok: true, chatCount: chats.length };
   } catch (err) {
     const message = err?.message || String(err);
     await chrome.storage.local.set({ lastStatus: message });
@@ -308,11 +302,11 @@ async function maybeStart() {
       await runSingleChatJob(settings, trigger);
       return;
     }
-    await runJob("remote");
+    await runRosterJob("remote");
     return;
   }
   if (settings.autoExport && !session.ranThisSession) {
-    await runJob("session");
+    await runRosterJob("session");
   }
 }
 

@@ -473,7 +473,7 @@
 
     <section id="app">
       <div class="toolbar">
-        <button id="pullBtn" type="button">Pull chats</button>
+        <button id="pullBtn" type="button">Pull people list</button>
         <button id="refreshBtn" class="secondary" type="button">Refresh</button>
         <label for="senderFilter" class="sr-only">Sender phone</label>
         <select id="senderFilter" aria-label="Choose sender">
@@ -525,10 +525,13 @@
       const tokenKey = "chatToken";
       const senderKey = "chatSender";
       const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
-      let exports = [];
-      let conversations = [];
+      let rosterPeople = [];
       let selectedChatId = "";
+      let selectedChat = null;
+      let threadMessages = [];
       let pollTimer = 0;
+      let autoFetchFor = "";
+      let selecting = false;
 
       const gate = document.getElementById("gate");
       const app = document.getElementById("app");
@@ -595,53 +598,17 @@
         return senderFilter.value;
       }
 
-      function buildConversations() {
-        const sender = activeSender();
-        const map = new Map();
-        if (!sender) {
-          conversations = [];
-          return;
-        }
-        for (const item of exports) {
-          if (item.senderName !== sender) continue;
-          const id = item.chatId || item.chatName || "";
-          if (!id) continue;
-          let entry = map.get(id);
-          if (!entry) {
-            entry = {
-              chatId: id,
-              chatName: item.chatName || id,
-              isGroup: Boolean(item.isGroup),
-              senderName: item.senderName,
-              texts: [],
-              days: [],
-              updatedAt: item.updatedAt || item.exportedAt || "",
-            };
-            map.set(id, entry);
-          }
-          entry.texts.push(item.text || "");
-          if (item.day) entry.days.push(item.day);
-          if ((item.updatedAt || "") > (entry.updatedAt || "")) {
-            entry.updatedAt = item.updatedAt;
-            entry.chatName = item.chatName || entry.chatName;
-          }
-        }
-        conversations = [...map.values()].map((entry) => {
-          const messages = entry.texts.flatMap((text) => parseMessages(text));
-          messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
-          const last = messages[messages.length - 1];
-          return {
-            ...entry,
-            messages,
-            preview: last ? `${last.sender === "You" ? "You: " : ""}${last.body}` : "No messages",
-            when: last?.date || entry.days.sort().slice(-1)[0] || "",
-          };
-        });
-        conversations.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      function formatWhen(lastTs) {
+        if (!lastTs) return "";
+        const ms = lastTs > 1e12 ? lastTs : lastTs * 1000;
+        const d = new Date(ms);
+        if (Number.isNaN(d.getTime())) return "";
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
       }
 
-      function fillSenderFilter() {
-        const names = [...new Set(exports.map((item) => item.senderName).filter(Boolean))].sort();
+      function fillSenderFilter(senders) {
+        const names = (senders || []).map((item) => item.senderName).filter(Boolean);
         const saved = sessionStorage.getItem(senderKey) || "";
         const previous = senderFilter.value || saved;
         senderFilter.innerHTML = '<option value="">Choose a sender…</option>';
@@ -673,8 +640,8 @@
         senderAvatar.classList.remove("teal");
         setAvatar(senderAvatar, sender);
         senderTitle.textContent = sender;
-        const n = conversations.length;
-        senderSubtitle.textContent = `${n} chat${n === 1 ? "" : "s"}`;
+        const n = rosterPeople.length;
+        senderSubtitle.textContent = `${n} people`;
       }
 
       function setStatus(text, isError) {
@@ -716,14 +683,14 @@
         listEl.innerHTML = "";
         updateSenderChrome();
         if (!activeSender()) {
-          listEl.innerHTML = '<div class="empty">Choose a sender above to see that phone’s chats.</div>';
+          listEl.innerHTML = '<div class="empty">Choose a sender above to see that phone’s people.</div>';
           return;
         }
-        if (!conversations.length) {
-          listEl.innerHTML = '<div class="empty">No chats for this sender yet. Click Pull chats.</div>';
+        if (!rosterPeople.length) {
+          listEl.innerHTML = '<div class="empty">No people list yet. Click Sync people list.</div>';
           return;
         }
-        for (const chat of conversations) {
+        for (const chat of rosterPeople) {
           const button = document.createElement("button");
           button.type = "button";
           button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}`;
@@ -734,48 +701,55 @@
           row.className = "row";
           row.innerHTML = `<div class="top"><div class="name"></div><div class="when"></div></div><div class="preview"></div>`;
           row.querySelector(".name").textContent = chat.chatName;
-          row.querySelector(".when").textContent = chat.when;
-          row.querySelector(".preview").textContent = chat.preview.replace(/\s+/g, " ").trim();
+          row.querySelector(".when").textContent = formatWhen(chat.lastTs);
+          row.querySelector(".preview").textContent = chat.isGroup ? "Group" : "Tap to load chat";
           button.appendChild(avatar);
           button.appendChild(row);
           button.addEventListener("click", () => {
-            selectedChatId = chat.chatId;
-            renderList();
-            renderThread();
+            selectPerson(chat).catch((err) => setStatus(err.message, true));
           });
           listEl.appendChild(button);
         }
       }
 
-      function renderThread() {
-        const chat = conversations.find((item) => item.chatId === selectedChatId);
+      function renderThread(statusNote) {
         threadEl.innerHTML = "";
         if (!activeSender()) {
+          selectedChat = null;
           threadHeader.classList.remove("visible");
           pane.classList.add("empty-pane");
-          threadEl.innerHTML = `<div class="pane-empty"><h2>WhatsApp viewer</h2><p>Choose one sender first. Chats from different phones stay separate.</p></div>`;
+          threadEl.innerHTML = `<div class="pane-empty"><h2>WhatsApp viewer</h2><p>Choose one sender first. Then open one person to load their chat.</p></div>`;
           return;
         }
-        if (!chat) {
+        if (!selectedChat) {
           threadHeader.classList.remove("visible");
           pane.classList.add("empty-pane");
-          threadEl.innerHTML = `<div class="pane-empty"><h2>${activeSender()}</h2><p>Select a chat from the list.</p></div>`;
+          threadEl.innerHTML = `<div class="pane-empty"><h2>${activeSender()}</h2><p>Select a person from the list. Messages load only for that chat.</p></div>`;
           return;
         }
 
         pane.classList.remove("empty-pane");
         threadHeader.classList.add("visible");
-        titleEl.textContent = chat.chatName;
-        subtitleEl.textContent = chat.isGroup ? "Group" : "Chat";
-        setAvatar(chatAvatar, chat.chatName);
+        titleEl.textContent = selectedChat.chatName;
+        subtitleEl.textContent = selectedChat.isGroup ? "Group" : "Chat";
+        setAvatar(chatAvatar, selectedChat.chatName);
 
-        if (!chat.messages.length) {
-          threadEl.innerHTML = '<div class="empty">This chat has no message lines.</div>';
+        if (statusNote) {
+          const note = document.createElement("div");
+          note.className = "empty";
+          note.textContent = statusNote;
+          threadEl.appendChild(note);
+        }
+
+        if (!threadMessages.length) {
+          if (!statusNote) {
+            threadEl.innerHTML = '<div class="empty">No messages loaded yet for this chat.</div>';
+          }
           return;
         }
 
         let lastDate = "";
-        for (const message of chat.messages) {
+        for (const message of threadMessages) {
           if (message.date && message.date !== lastDate) {
             lastDate = message.date;
             const pill = document.createElement("div");
@@ -787,7 +761,7 @@
           const sender = message.sender || "";
           const kind = sender === "You" ? "me" : sender === "System" ? "system" : "them";
           bubble.className = `bubble ${kind}`;
-          if (kind === "them" && chat.isGroup) {
+          if (kind === "them" && selectedChat.isGroup) {
             const who = document.createElement("div");
             who.className = "who";
             who.textContent = sender;
@@ -807,39 +781,115 @@
         threadEl.scrollTop = threadEl.scrollHeight;
       }
 
-      async function loadChats() {
-        const data = await api("/exports?includeText=1");
-        exports = data.items || [];
-        fillSenderFilter();
-        buildConversations();
-        if (selectedChatId && !conversations.some((chat) => chat.chatId === selectedChatId)) {
+      async function loadSenderRoster() {
+        const sender = activeSender();
+        if (!sender) {
+          rosterPeople = [];
           selectedChatId = "";
+          selectedChat = null;
+          threadMessages = [];
+          renderList();
+          renderThread();
+          return 0;
         }
-        if (!selectedChatId && conversations[0]) selectedChatId = conversations[0].chatId;
+        const data = await api(`/roster?senderName=${encodeURIComponent(sender)}`);
+        rosterPeople = (data.chats || [])
+          .slice()
+          .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+        if (selectedChatId && !rosterPeople.some((chat) => chat.chatId === selectedChatId)) {
+          selectedChatId = "";
+          selectedChat = null;
+          threadMessages = [];
+        }
         renderList();
-        renderThread();
-        return exports.length;
+        return rosterPeople.length;
+      }
+
+      async function loadSelectedThread() {
+        const sender = activeSender();
+        if (!sender || !selectedChatId) {
+          threadMessages = [];
+          return 0;
+        }
+        const data = await api(
+          `/exports?senderName=${encodeURIComponent(sender)}&chatId=${encodeURIComponent(selectedChatId)}&includeText=1`,
+        );
+        const items = data.items || [];
+        const messages = items.flatMap((item) => parseMessages(item.text || ""));
+        messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
+        threadMessages = messages;
+        return messages.length;
+      }
+
+      async function requestChatFetch(chat, months) {
+        const sender = activeSender();
+        await api("/trigger", {
+          method: "POST",
+          body: JSON.stringify({
+            senderName: sender,
+            chatId: chat.chatId,
+            chatName: chat.chatName,
+            months,
+          }),
+        });
+      }
+
+      async function selectPerson(chat) {
+        if (selecting) return;
+        selecting = true;
+        try {
+          selectedChatId = chat.chatId;
+          selectedChat = chat;
+          autoFetchFor = "";
+          renderList();
+          renderThread("Loading…");
+          const count = await loadSelectedThread();
+          if (count) {
+            renderThread();
+            setStatus(`Showing ${count} messages for ${chat.chatName}.`);
+            return;
+          }
+          const months = Number(monthsSelect.value) || 2;
+          autoFetchFor = chat.chatId;
+          renderThread(`No stored messages. Fetching ${months} month${months === 1 ? "" : "s"}…`);
+          setStatus(
+            `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${activeSender()}. Leave WhatsApp Web open.`,
+          );
+          await requestChatFetch(chat, months);
+          waitForUpload(fetchChatBtn);
+        } finally {
+          selecting = false;
+        }
       }
 
       async function refresh() {
         setStatus("Loading…");
-        const count = await loadChats();
+        const sendersData = await api("/roster");
+        fillSenderFilter(sendersData.senders || []);
+        const count = await loadSenderRoster();
+        if (selectedChatId) {
+          const person = rosterPeople.find((chat) => chat.chatId === selectedChatId);
+          if (person) selectedChat = person;
+          await loadSelectedThread();
+          renderThread();
+        } else {
+          renderThread();
+        }
         const trigger = await api("/trigger");
         const who = trigger.senderName ? ` (${trigger.senderName})` : "";
         const senderNote = trigger.senderStatus
           ? ` Sender${who}: ${trigger.senderStatus}`
           : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
         if (trigger.export_requested) {
-          const one =
-            trigger.requestChatId
-              ? ` Fetching “${trigger.requestChatName || trigger.requestChatId}” (${trigger.requestMonths || "?"} mo) for ${trigger.requestSenderName || "sender"}.`
-              : " Waiting for a full top-10 pull.";
-          setStatus(`${one} ${count} export${count === 1 ? "" : "s"} stored.${senderNote}`, !trigger.senderAt);
+          const one = trigger.requestChatId
+            ? ` Fetching “${trigger.requestChatName || trigger.requestChatId}” (${trigger.requestMonths || "?"} mo) for ${trigger.requestSenderName || "sender"}.`
+            : " Waiting for people-list sync.";
+          setStatus(`${one} ${count} people listed.${senderNote}`, !trigger.senderAt);
         } else {
           setStatus(
             count
-              ? `${count} export${count === 1 ? "" : "s"} stored.${senderNote}`
-              : `No chats stored yet.${senderNote}`,
+              ? `${count} people listed.${senderNote}`
+              : `No people list yet. Click Sync people list.${senderNote}`,
           );
         }
         return trigger.export_requested;
@@ -847,22 +897,33 @@
 
       function waitForUpload(button) {
         clearInterval(pollTimer);
-        button.disabled = true;
+        if (button) button.disabled = true;
+        fetchChatBtn.disabled = true;
+        document.getElementById("pullBtn").disabled = true;
         let tries = 0;
         pollTimer = setInterval(async () => {
           tries += 1;
           try {
             const waiting = await refresh();
+            if (autoFetchFor && selectedChatId === autoFetchFor && threadMessages.length) {
+              clearInterval(pollTimer);
+              autoFetchFor = "";
+              fetchChatBtn.disabled = false;
+              document.getElementById("pullBtn").disabled = false;
+              if (button) button.disabled = false;
+              setStatus(`Loaded ${threadMessages.length} messages for ${selectedChat?.chatName || "chat"}.`);
+              return;
+            }
             if (!waiting || tries >= 36) {
               clearInterval(pollTimer);
-              button.disabled = false;
+              if (button) button.disabled = false;
               fetchChatBtn.disabled = false;
               document.getElementById("pullBtn").disabled = false;
               if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
             }
           } catch (err) {
             clearInterval(pollTimer);
-            button.disabled = false;
+            if (button) button.disabled = false;
             fetchChatBtn.disabled = false;
             document.getElementById("pullBtn").disabled = false;
             setStatus(err.message, true);
@@ -888,17 +949,20 @@
       senderFilter.addEventListener("change", () => {
         if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
         else sessionStorage.removeItem(senderKey);
-        buildConversations();
-        selectedChatId = conversations[0] ? conversations[0].chatId : "";
-        renderList();
-        renderThread();
+        selectedChatId = "";
+        selectedChat = null;
+        threadMessages = [];
+        autoFetchFor = "";
+        loadSenderRoster()
+          .then(() => renderThread())
+          .catch((err) => setStatus(err.message, true));
       });
 
       document.getElementById("pullBtn").addEventListener("click", async () => {
         const button = document.getElementById("pullBtn");
         try {
           await api("/trigger", { method: "POST", body: "{}" });
-          setStatus("Pull requested. Leave WhatsApp Web open on the sender. Checking…");
+          setStatus("People-list sync requested. Leave WhatsApp Web open on the sender. Checking…");
           waitForUpload(button);
         } catch (err) {
           button.disabled = false;
@@ -908,31 +972,23 @@
 
       fetchChatBtn.addEventListener("click", async () => {
         const sender = activeSender();
-        const chat = conversations.find((item) => item.chatId === selectedChatId);
+        const chat = selectedChat || rosterPeople.find((item) => item.chatId === selectedChatId);
         const months = Number(monthsSelect.value) || 2;
         if (!sender) {
           setStatus("Choose a sender first.", true);
           return;
         }
         if (!chat) {
-          setStatus("Open a chat from the list first.", true);
+          setStatus("Open a person from the list first.", true);
           return;
         }
         try {
-          fetchChatBtn.disabled = true;
-          document.getElementById("pullBtn").disabled = true;
-          await api("/trigger", {
-            method: "POST",
-            body: JSON.stringify({
-              senderName: sender,
-              chatId: chat.chatId,
-              chatName: chat.chatName,
-              months,
-            }),
-          });
+          autoFetchFor = chat.chatId;
+          renderThread(`Fetching ${months} month${months === 1 ? "" : "s"}…`);
           setStatus(
             `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${sender}. Leave WhatsApp Web open.`,
           );
+          await requestChatFetch(chat, months);
           waitForUpload(fetchChatBtn);
         } catch (err) {
           fetchChatBtn.disabled = false;
