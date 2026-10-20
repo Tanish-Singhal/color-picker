@@ -108,6 +108,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (
+      (req.method === "GET" || req.method === "HEAD") &&
+      path === "/ping"
+    ) {
+      res.writeHead(200, {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      res.end(req.method === "HEAD" ? undefined : "ok");
+      return;
+    }
+
     if (req.method === "GET" && path === "/") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(pageHtml);
