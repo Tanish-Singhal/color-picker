@@ -131,7 +131,14 @@ async function sendToWaTab(tabId, message) {
   throw lastError || new Error("WhatsApp tab did not respond.");
 }
 
-async function uploadChat(settings, tabId, chat, fromDate, toDate, replaceChat) {
+async function uploadChat(
+  settings,
+  tabId,
+  chat,
+  fromDate,
+  toDate,
+  replaceChat,
+) {
   const exported = await sendToWaTab(tabId, {
     type: "WA_EXPORTER_EXPORT_TEXT",
     chatId: chat.id,
@@ -140,7 +147,9 @@ async function uploadChat(settings, tabId, chat, fromDate, toDate, replaceChat) 
     silent: true,
   });
   if (!exported?.ok) {
-    throw new Error(exported?.error || `Export failed for ${chat.name || chat.id}`);
+    throw new Error(
+      exported?.error || `Export failed for ${chat.name || chat.id}`,
+    );
   }
   await apiFetch(settings, "/upload", {
     method: "POST",
@@ -170,7 +179,10 @@ async function runSingleChatJob(settings, request) {
 
     const months = Number(request.requestMonths) || 2;
     const label = request.requestChatName || request.requestChatId;
-    await reportStatus(settings, `Fetching ${label} for ${months} month${months === 1 ? "" : "s"}…`);
+    await reportStatus(
+      settings,
+      `Fetching ${label} for ${months} month${months === 1 ? "" : "s"}…`,
+    );
 
     const { fromDate, toDate } = monthRange(months);
     await uploadChat(
@@ -280,7 +292,10 @@ async function maybeStart() {
     try {
       trigger = await apiFetch(settings, "/trigger");
       if (!trigger.export_requested) {
-        await reportStatus(settings, "Sender is connected. No pull is waiting.");
+        await reportStatus(
+          settings,
+          "Sender is connected. No pull is waiting.",
+        );
       }
     } catch (err) {
       await chrome.storage.local.set({

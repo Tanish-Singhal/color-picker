@@ -108,10 +108,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (
-      (req.method === "GET" || req.method === "HEAD") &&
-      path === "/ping"
-    ) {
+    if ((req.method === "GET" || req.method === "HEAD") && path === "/ping") {
       res.writeHead(200, {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
@@ -205,10 +202,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && path === "/roster") {
-      const senderName = String(url.searchParams.get("senderName") || "").trim();
+      const senderName = String(
+        url.searchParams.get("senderName") || "",
+      ).trim();
       if (!senderName) {
         const docs = await rostersCol
-          .find({}, { projection: { senderName: 1, chatCount: 1, updatedAt: 1 } })
+          .find(
+            {},
+            { projection: { senderName: 1, chatCount: 1, updatedAt: 1 } },
+          )
           .sort({ senderName: 1 })
           .toArray();
         sendJson(res, 200, {
@@ -233,7 +235,9 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && path === "/exports") {
       const includeText = url.searchParams.get("includeText") === "1";
-      const senderName = String(url.searchParams.get("senderName") || "").trim();
+      const senderName = String(
+        url.searchParams.get("senderName") || "",
+      ).trim();
       const chatId = String(url.searchParams.get("chatId") || "").trim();
       const filter = {};
       if (senderName) filter.senderName = senderName;
@@ -308,7 +312,8 @@ const server = http.createServer(async (req, res) => {
         if (!requestSenderName || !ALLOWED_MONTHS.has(months)) {
           sendJson(res, 400, {
             ok: false,
-            error: "senderName and months (1, 2, 3, 6, or 12) are required for a single chat",
+            error:
+              "senderName and months (1, 2, 3, 6, or 12) are required for a single chat",
           });
           return;
         }
