@@ -1,1058 +1,1454 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chats</title>
-    <style>
-      :root {
-        --wa-teal: #008069;
-        --wa-teal-dark: #005c4b;
-        --wa-green: #25d366;
-        --wa-panel: #f0f2f5;
-        --wa-list: #ffffff;
-        --wa-hover: #f5f6f6;
-        --wa-active: #f0f2f5;
-        --wa-chat-bg: #efeae2;
-        --wa-outgoing: #d9fdd3;
-        --wa-incoming: #ffffff;
-        --wa-text: #111b21;
-        --wa-muted: #667781;
-        --wa-border: #e9edef;
-        --wa-system: #ffffffcc;
-        --wa-page: #d1d7db;
-        --wa-shadow: rgba(11, 20, 26, 0.13);
-      }
 
-      html.dark {
-        --wa-teal: #00a884;
-        --wa-teal-dark: #008f72;
-        --wa-panel: #202c33;
-        --wa-list: #111b21;
-        --wa-hover: #202c33;
-        --wa-active: #2a3942;
-        --wa-chat-bg: #0b141a;
-        --wa-outgoing: #005c4b;
-        --wa-incoming: #202c33;
-        --wa-text: #e9edef;
-        --wa-muted: #8696a0;
-        --wa-border: #2a3942;
-        --wa-system: #182229;
-        --wa-page: #0b141a;
-        --wa-shadow: rgba(0, 0, 0, 0.35);
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chats</title>
+  <style>
+    :root {
+      --wa-teal: #008069;
+      --wa-teal-dark: #005c4b;
+      --wa-green: #25d366;
+      --wa-panel: #f0f2f5;
+      --wa-list: #ffffff;
+      --wa-hover: #f5f6f6;
+      --wa-active: #f0f2f5;
+      --wa-chat-bg: #efeae2;
+      --wa-outgoing: #d9fdd3;
+      --wa-incoming: #ffffff;
+      --wa-text: #111b21;
+      --wa-muted: #667781;
+      --wa-border: #e9edef;
+      --wa-system: #ffffffcc;
+      --wa-page: #d1d7db;
+      --wa-shadow: rgba(11, 20, 26, 0.13);
+    }
 
-      * { box-sizing: border-box; }
+    html.dark {
+      --wa-teal: #00a884;
+      --wa-teal-dark: #008f72;
+      --wa-panel: #202c33;
+      --wa-list: #111b21;
+      --wa-hover: #202c33;
+      --wa-active: #2a3942;
+      --wa-chat-bg: #0b141a;
+      --wa-outgoing: #005c4b;
+      --wa-incoming: #202c33;
+      --wa-text: #e9edef;
+      --wa-muted: #8696a0;
+      --wa-border: #2a3942;
+      --wa-system: #182229;
+      --wa-page: #0b141a;
+      --wa-shadow: rgba(0, 0, 0, 0.35);
+    }
 
-      body {
-        margin: 0;
-        height: 100vh;
-        font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-        color: var(--wa-text);
-        background: var(--wa-page);
-      }
+    * {
+      box-sizing: border-box;
+    }
 
-      button, input, select { font: inherit; }
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--wa-text);
+      background: var(--wa-page);
+    }
 
-      #gate {
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-        background:
-          linear-gradient(180deg, var(--wa-teal) 0 140px, var(--wa-page) 140px);
-      }
+    button,
+    input,
+    select {
+      font: inherit;
+    }
 
-      .card {
-        width: min(420px, 100%);
-        background: var(--wa-list);
-        border-radius: 4px;
-        padding: 28px 24px;
-        box-shadow: 0 2px 12px var(--wa-shadow);
-        color: var(--wa-text);
-      }
+    #gate {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        linear-gradient(180deg, var(--wa-teal) 0 140px, var(--wa-page) 140px);
+    }
 
-      .card h1 {
-        margin: 0 0 8px;
-        font-size: 22px;
-        font-weight: 400;
-        color: var(--wa-teal);
-      }
+    .card {
+      width: min(420px, 100%);
+      background: var(--wa-list);
+      border-radius: 4px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 12px var(--wa-shadow);
+      color: var(--wa-text);
+    }
 
-      .card p {
-        margin: 0 0 18px;
-        color: var(--wa-muted);
-        line-height: 1.45;
-        font-size: 14px;
-      }
+    .card h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 400;
+      color: var(--wa-teal);
+    }
 
-      .card label {
-        display: block;
-        margin-bottom: 6px;
-        color: var(--wa-muted);
-        font-size: 13px;
-      }
+    .card p {
+      margin: 0 0 18px;
+      color: var(--wa-muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
 
-      .card input[type="password"] {
-        width: 100%;
-        margin-bottom: 16px;
-        padding: 12px 14px;
-        border: 1px solid var(--wa-border);
-        border-radius: 8px;
-        outline: none;
-        background: var(--wa-list);
-        color: var(--wa-text);
-      }
+    .card label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--wa-muted);
+      font-size: 13px;
+    }
 
-      .card input[type="password"]:focus {
-        border-color: var(--wa-teal);
-      }
+    .card input[type="password"] {
+      width: 100%;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--wa-border);
+      border-radius: 8px;
+      outline: none;
+      background: var(--wa-list);
+      color: var(--wa-text);
+    }
 
-      .card button[type="submit"] {
-        width: 100%;
-        border: none;
-        border-radius: 24px;
-        padding: 12px 16px;
-        background: var(--wa-teal);
-        color: #fff;
-        font-weight: 500;
-        cursor: pointer;
-      }
+    .card input[type="password"]:focus {
+      border-color: var(--wa-teal);
+    }
 
-      .card button[type="submit"]:hover { background: var(--wa-teal-dark); }
+    .card button[type="submit"] {
+      width: 100%;
+      border: none;
+      border-radius: 24px;
+      padding: 12px 16px;
+      background: var(--wa-teal);
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+    }
 
-      #gateError { color: #ea4335; min-height: 1.2em; margin: 12px 0 0; padding: 0; }
+    .card button[type="submit"]:hover {
+      background: var(--wa-teal-dark);
+    }
 
-      #app {
-        display: none;
-        height: 100vh;
-        max-width: 1600px;
-        margin: 0 auto;
-        background: #fff;
-        box-shadow: 0 0 24px rgba(11, 20, 26, 0.18);
-        grid-template-rows: auto 1fr;
-      }
+    #gateError {
+      color: #ea4335;
+      min-height: 1.2em;
+      margin: 12px 0 0;
+      padding: 0;
+    }
 
-      .toolbar {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        padding: 10px 16px;
-        background: var(--wa-panel);
-        border-bottom: 1px solid var(--wa-border);
-        flex-wrap: wrap;
-      }
+    #app {
+      display: none;
+      height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      background: #fff;
+      box-shadow: 0 0 24px rgba(11, 20, 26, 0.18);
+      grid-template-rows: auto 1fr;
+    }
 
-      .toolbar button {
-        border: none;
-        border-radius: 20px;
-        padding: 8px 16px;
-        background: var(--wa-teal);
-        color: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
-      }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--wa-panel);
+      border-bottom: 1px solid var(--wa-border);
+      flex-wrap: wrap;
+    }
 
-      .toolbar button.secondary {
-        background: #fff;
-        color: var(--wa-text);
-        border: 1px solid var(--wa-border);
-      }
+    .toolbar button {
+      border: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      background: var(--wa-teal);
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
 
-      .toolbar button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .toolbar button.secondary {
+      background: var(--wa-list);
+      color: var(--wa-text);
+      border: 1px solid var(--wa-border);
+    }
 
-      .toolbar select {
-        min-width: 180px;
-        padding: 8px 12px;
-        border: 1px solid var(--wa-border);
-        border-radius: 8px;
-        background: #fff;
-        color: var(--wa-text);
-      }
+    .toolbar button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
 
-      #status {
-        flex: 1;
-        color: var(--wa-muted);
-        font-size: 12px;
-        min-width: 140px;
-        line-height: 1.35;
-      }
+    .toolbar select {
+      min-width: 180px;
+      padding: 8px 12px;
+      border: 1px solid var(--wa-border);
+      border-radius: 8px;
+      background: var(--wa-list);
+      color: var(--wa-text);
+    }
 
-      #status.error { color: #ea4335; }
+    #status {
+      flex: 1;
+      color: var(--wa-muted);
+      font-size: 12px;
+      min-width: 140px;
+      line-height: 1.35;
+    }
 
+    #status.error {
+      color: #ea4335;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) 1fr;
+      min-height: 0;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--wa-list);
+      border-right: 1px solid var(--wa-border);
+    }
+
+    .sidebar-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--wa-panel);
+      border-bottom: 1px solid var(--wa-border);
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background: #6b7c85;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+
+    .avatar.sm {
+      width: 40px;
+      height: 40px;
+      font-size: 14px;
+    }
+
+    .avatar.teal {
+      background: var(--wa-teal);
+    }
+
+    .sidebar-head .meta-block {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .sidebar-head strong {
+      display: block;
+      font-size: 16px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-head span {
+      display: block;
+      color: var(--wa-muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .sidebar-search {
+      padding: 8px 12px;
+      background: var(--wa-list);
+      border-bottom: 1px solid var(--wa-border);
+    }
+
+    .sidebar-search input,
+    .thread-tools input,
+    .thread-tools select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--wa-border);
+      border-radius: 8px;
+      background: var(--wa-panel);
+      color: var(--wa-text);
+      outline: none;
+    }
+
+    .sidebar-search input:focus,
+    .thread-tools input:focus,
+    .thread-tools select:focus {
+      border-color: var(--wa-teal);
+    }
+
+    #list {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .chat-item {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--wa-text);
+      border: none;
+      border-bottom: 1px solid var(--wa-border);
+      border-radius: 0;
+      padding: 12px 16px;
+      cursor: pointer;
+      align-items: center;
+    }
+
+    .chat-item:hover {
+      background: var(--wa-hover);
+    }
+
+    .chat-item.active {
+      background: var(--wa-active);
+    }
+
+    .chat-item .row {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-item .top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .chat-item .name {
+      font-weight: 500;
+      font-size: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-item .when {
+      color: var(--wa-muted);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .chat-item .preview {
+      color: var(--wa-muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      background: var(--wa-chat-bg);
+    }
+
+    .pane.empty-pane {
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pane-empty {
+      text-align: center;
+      color: var(--wa-muted);
+      max-width: 360px;
+      padding: 24px;
+    }
+
+    .pane-empty h2 {
+      margin: 0 0 8px;
+      font-weight: 300;
+      font-size: 28px;
+      color: #41525d;
+    }
+
+    #threadHeader {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--wa-panel);
+      border-bottom: 1px solid var(--wa-border);
+      flex-wrap: wrap;
+    }
+
+    #threadHeader.visible {
+      display: flex;
+    }
+
+    #threadHeader .chat-meta {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    #threadHeader .title {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #threadHeader .subtitle {
+      color: var(--wa-muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    #threadHeader .fetch-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-left: auto;
+    }
+
+    #threadHeader .fetch-controls select {
+      padding: 7px 10px;
+      border: 1px solid var(--wa-border);
+      border-radius: 8px;
+      background: var(--wa-list);
+      color: var(--wa-text);
+    }
+
+    #threadHeader .fetch-controls button {
+      border: none;
+      border-radius: 20px;
+      padding: 8px 14px;
+      background: var(--wa-teal);
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    #threadHeader .fetch-controls button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .thread-tools {
+      display: flex;
+      flex: 1 0 100%;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .thread-tools input {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .thread-tools select {
+      width: auto;
+      min-width: 180px;
+    }
+
+    #searchCount {
+      color: var(--wa-muted);
+      font-size: 12px;
+      white-space: nowrap;
+      min-width: 72px;
+    }
+
+    .thread-tools button {
+      border: 1px solid var(--wa-border);
+      border-radius: 16px;
+      padding: 7px 12px;
+      background: var(--wa-list);
+      color: var(--wa-text);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .thread-tools button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    #thread {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 7% 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 3px;
+      background-color: var(--wa-chat-bg);
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        radial-gradient(circle at 80% 40%, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    .day-pill {
+      align-self: center;
+      margin: 10px 0;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--wa-system);
+      color: var(--wa-muted);
+      font-size: 12px;
+      box-shadow: 0 1px 1px var(--wa-shadow);
+    }
+
+    .bubble {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: fit-content;
+      max-width: min(65%, 560px);
+      padding: 6px 8px 4px 9px;
+      border-radius: 8px;
+      background: var(--wa-incoming);
+      color: var(--wa-text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+      font-size: 14.2px;
+      box-shadow: 0 1px 0.5px var(--wa-shadow);
+      margin: 2px 0;
+    }
+
+    .bubble.me {
+      align-self: flex-end;
+      margin-left: auto;
+      background: var(--wa-outgoing);
+      border-radius: 8px 8px 0 8px;
+    }
+
+    .bubble.them {
+      align-self: flex-start;
+      margin-right: auto;
+      border-radius: 8px 8px 8px 0;
+    }
+
+    .bubble.system {
+      align-self: center;
+      align-items: center;
+      margin-left: auto;
+      margin-right: auto;
+      background: var(--wa-system);
+      color: var(--wa-muted);
+      font-size: 12.5px;
+      text-align: center;
+      max-width: 85%;
+      min-width: 0;
+      box-shadow: none;
+    }
+
+    .bubble.search-current {
+      box-shadow: 0 0 0 2px var(--wa-teal);
+    }
+
+    mark {
+      background: #ffe08a;
+      color: inherit;
+      border-radius: 2px;
+    }
+
+    html.dark mark {
+      background: #8a6a12;
+      color: #fff;
+    }
+
+    .bubble .who {
+      color: #06cf9c;
+      font-size: 12.5px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .bubble .meta {
+      align-self: flex-end;
+      margin-top: 2px;
+      color: var(--wa-muted);
+      font-size: 11px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .bubble.media {
+      max-width: 240px;
+    }
+
+    .media-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--wa-muted);
+    }
+
+    .bubble.media .body {
+      margin-top: 2px;
+      font-size: 13.5px;
+    }
+
+    .empty {
+      color: var(--wa-muted);
+      padding: 28px 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    @media (max-width: 800px) {
       .layout {
-        display: grid;
-        grid-template-columns: minmax(300px, 380px) 1fr;
-        min-height: 0;
+        grid-template-columns: 1fr;
       }
 
       .sidebar {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        background: var(--wa-list);
-        border-right: 1px solid var(--wa-border);
-      }
-
-      .sidebar-head {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        background: var(--wa-panel);
-        border-bottom: 1px solid var(--wa-border);
-      }
-
-      .avatar {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        font-size: 16px;
-        font-weight: 600;
-        color: #fff;
-        background: #6b7c85;
-        flex-shrink: 0;
-        text-transform: uppercase;
-      }
-
-      .avatar.sm { width: 40px; height: 40px; font-size: 14px; }
-
-      .avatar.teal { background: var(--wa-teal); }
-
-      .sidebar-head .meta-block { min-width: 0; flex: 1; }
-
-      .sidebar-head strong {
-        display: block;
-        font-size: 16px;
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .sidebar-head span {
-        display: block;
-        color: var(--wa-muted);
-        font-size: 12px;
-        margin-top: 2px;
-      }
-
-      #list {
-        flex: 1;
-        overflow: auto;
-      }
-
-      .chat-item {
-        display: flex;
-        gap: 12px;
-        width: 100%;
-        text-align: left;
-        background: transparent;
-        color: var(--wa-text);
-        border: none;
-        border-bottom: 1px solid var(--wa-border);
-        border-radius: 0;
-        padding: 12px 16px;
-        cursor: pointer;
-        align-items: center;
-      }
-
-      .chat-item:hover { background: var(--wa-hover); }
-      .chat-item.active { background: var(--wa-active); }
-
-      .chat-item .row {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .chat-item .top {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 4px;
-      }
-
-      .chat-item .name {
-        font-weight: 500;
-        font-size: 16px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .chat-item .when {
-        color: var(--wa-muted);
-        font-size: 12px;
-        flex-shrink: 0;
-      }
-
-      .chat-item .preview {
-        color: var(--wa-muted);
-        font-size: 13px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .pane {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-        min-height: 0;
-        background: var(--wa-chat-bg);
-      }
-
-      .pane.empty-pane {
-        align-items: center;
-        justify-content: center;
-      }
-
-      .pane-empty {
-        text-align: center;
-        color: var(--wa-muted);
-        max-width: 360px;
-        padding: 24px;
-      }
-
-      .pane-empty h2 {
-        margin: 0 0 8px;
-        font-weight: 300;
-        font-size: 28px;
-        color: #41525d;
-      }
-
-      #threadHeader {
-        display: none;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 16px;
-        background: var(--wa-panel);
-        border-bottom: 1px solid var(--wa-border);
-        flex-wrap: wrap;
-      }
-
-      #threadHeader.visible { display: flex; }
-
-      #threadHeader .chat-meta {
-        flex: 1;
-        min-width: 120px;
-      }
-
-      #threadHeader .title {
-        font-size: 16px;
-        font-weight: 500;
-      }
-
-      #threadHeader .subtitle {
-        color: var(--wa-muted);
-        font-size: 12px;
-        margin-top: 2px;
-      }
-
-      #threadHeader .fetch-controls {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        margin-left: auto;
-      }
-
-      #threadHeader .fetch-controls select {
-        padding: 7px 10px;
-        border: 1px solid var(--wa-border);
-        border-radius: 8px;
-        background: #fff;
-      }
-
-      #threadHeader .fetch-controls button {
-        border: none;
-        border-radius: 20px;
-        padding: 8px 14px;
-        background: var(--wa-teal);
-        color: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
-        white-space: nowrap;
-      }
-
-      #threadHeader .fetch-controls button:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
+        max-height: 38vh;
       }
 
       #thread {
-        flex: 1;
-        overflow: auto;
-        padding: 12px 7% 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 3px;
-        background-color: var(--wa-chat-bg);
-        background-image:
-          radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          radial-gradient(circle at 80% 40%, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
-        background-size: 28px 28px;
-      }
-
-      .day-pill {
-        align-self: center;
-        margin: 10px 0;
-        padding: 6px 12px;
-        border-radius: 8px;
-        background: var(--wa-system);
-        color: var(--wa-muted);
-        font-size: 12px;
-        box-shadow: 0 1px 1px var(--wa-shadow);
+        padding: 10px 4% 16px;
       }
 
       .bubble {
-        position: relative;
-        display: block;
-        width: fit-content;
-        max-width: min(65%, 560px);
-        padding: 6px 8px 4px 9px;
-        border-radius: 8px;
-        background: var(--wa-incoming);
-        color: var(--wa-text);
-        white-space: pre-wrap;
-        word-break: break-word;
-        line-height: 1.4;
-        font-size: 14.2px;
-        box-shadow: 0 1px 0.5px var(--wa-shadow);
-        margin: 2px 0;
+        max-width: 88%;
       }
+    }
+  </style>
+</head>
 
-      .bubble.me {
-        align-self: flex-end;
-        margin-left: auto;
-        background: var(--wa-outgoing);
-        border-radius: 8px 8px 0 8px;
-      }
+<body>
+  <section id="gate">
+    <form class="card" id="gateForm">
+      <h1>Chats</h1>
+      <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
+      <label for="tokenInput">Token</label>
+      <input id="tokenInput" type="password" autocomplete="current-password" required />
+      <button type="submit">Open</button>
+      <p id="gateError" class="empty"></p>
+    </form>
+  </section>
 
-      .bubble.them {
-        align-self: flex-start;
-        margin-right: auto;
-        border-radius: 8px 8px 8px 0;
-      }
-
-      .bubble.system {
-        align-self: center;
-        margin-left: auto;
-        margin-right: auto;
-        background: var(--wa-system);
-        color: var(--wa-muted);
-        font-size: 12.5px;
-        text-align: center;
-        max-width: 85%;
-        box-shadow: none;
-      }
-
-      .bubble .who {
-        color: #06cf9c;
-        font-size: 12.5px;
-        font-weight: 600;
-        margin-bottom: 2px;
-      }
-
-      .bubble .body { padding-right: 52px; }
-
-      .bubble .meta {
-        float: right;
-        margin: -2px 0 0 8px;
-        color: var(--wa-muted);
-        font-size: 11px;
-        white-space: nowrap;
-      }
-
-      .empty {
-        color: var(--wa-muted);
-        padding: 28px 20px;
-        text-align: center;
-        font-size: 14px;
-      }
-
-      .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        border: 0;
-      }
-
-      @media (max-width: 800px) {
-        .layout { grid-template-columns: 1fr; }
-        .sidebar { max-height: 38vh; }
-        #thread { padding: 10px 4% 16px; }
-        .bubble { max-width: 88%; }
-      }
-    </style>
-  </head>
-  <body>
-    <section id="gate">
-      <form class="card" id="gateForm">
-        <h1>Chats</h1>
-        <p>Enter the same token you saved in the extension. It stays in this browser tab only.</p>
-        <label for="tokenInput">Token</label>
-        <input id="tokenInput" type="password" autocomplete="current-password" required />
-        <button type="submit">Open</button>
-        <p id="gateError" class="empty"></p>
-      </form>
-    </section>
-
-    <section id="app">
-      <div class="toolbar">
-        <button id="pullBtn" type="button">Sync people</button>
-        <button id="refreshBtn" class="secondary" type="button">Refresh</button>
-        <button id="themeBtn" class="secondary" type="button" aria-label="Toggle dark mode">Dark</button>
-        <label for="senderFilter" class="sr-only">Sender phone</label>
-        <select id="senderFilter" aria-label="Choose sender">
-          <option value="">Choose a sender…</option>
-        </select>
-        <div id="status">No chats yet.</div>
-      </div>
-      <div class="layout">
-        <aside class="sidebar">
-          <div class="sidebar-head">
-            <div class="avatar teal" id="senderAvatar">?</div>
-            <div class="meta-block">
-              <strong id="senderTitle">Select a sender</strong>
-              <span id="senderSubtitle">One phone at a time</span>
-            </div>
+  <section id="app">
+    <div class="toolbar">
+      <button id="pullBtn" type="button">Sync people</button>
+      <button id="refreshBtn" class="secondary" type="button">Refresh</button>
+      <button id="themeBtn" class="secondary" type="button" aria-label="Toggle dark mode">Dark</button>
+      <label for="senderFilter" class="sr-only">Sender phone</label>
+      <select id="senderFilter" aria-label="Choose sender">
+        <option value="">Choose a sender…</option>
+      </select>
+      <div id="status">No chats yet.</div>
+    </div>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <div class="avatar teal" id="senderAvatar">?</div>
+          <div class="meta-block">
+            <strong id="senderTitle">Select a sender</strong>
+            <span id="senderSubtitle">One phone at a time</span>
           </div>
-          <div id="list"></div>
-        </aside>
-        <main class="pane" id="pane">
-          <div id="threadHeader">
-            <div class="avatar sm" id="chatAvatar">?</div>
-            <div class="chat-meta">
-              <div class="title" id="threadTitle">Select a chat</div>
-              <div class="subtitle" id="threadSubtitle"></div>
-            </div>
-            <div class="fetch-controls">
-              <label for="monthsSelect" class="sr-only">Months</label>
-              <select id="monthsSelect" aria-label="How many months">
-                <option value="1">1 month</option>
-                <option value="2" selected>2 months</option>
-                <option value="3">3 months</option>
-                <option value="6">6 months</option>
-                <option value="12">12 months</option>
-              </select>
-              <button id="fetchChatBtn" type="button">Fetch this chat</button>
-            </div>
+        </div>
+        <div class="sidebar-search">
+          <label for="peopleSearch" class="sr-only">Search people</label>
+          <input id="peopleSearch" type="search" placeholder="Search people" autocomplete="off" />
+        </div>
+        <div id="list"></div>
+      </aside>
+      <main class="pane" id="pane">
+        <div id="threadHeader">
+          <div class="avatar sm" id="chatAvatar">?</div>
+          <div class="chat-meta">
+            <div class="title" id="threadTitle">Select a chat</div>
+            <div class="subtitle" id="threadSubtitle"></div>
           </div>
-          <div id="thread">
-            <div class="pane-empty">
-              <h2>WhatsApp viewer</h2>
-              <p>Pick a sender on the left, then open a chat.</p>
-            </div>
+          <div class="fetch-controls">
+            <label for="monthsSelect" class="sr-only">Months</label>
+            <select id="monthsSelect" aria-label="How many months">
+              <option value="1">1 month</option>
+              <option value="2" selected>2 months</option>
+              <option value="3">3 months</option>
+              <option value="6">6 months</option>
+              <option value="12">12 months</option>
+            </select>
+            <button id="fetchChatBtn" type="button">Fetch this chat</button>
           </div>
-        </main>
-      </div>
-    </section>
+          <div class="thread-tools">
+            <label for="messageSearch" class="sr-only">Search messages</label>
+            <input id="messageSearch" type="search" placeholder="Search in this chat" autocomplete="off" />
+            <span id="searchCount"></span>
+            <button id="searchPrev" type="button" disabled>Prev</button>
+            <button id="searchNext" type="button" disabled>Next</button>
+            <label for="dateJump" class="sr-only">Jump to date</label>
+            <select id="dateJump" aria-label="Jump to date">
+              <option value="">Jump to date</option>
+            </select>
+          </div>
+        </div>
+        <div id="thread">
+          <div class="pane-empty">
+            <h2>WhatsApp viewer</h2>
+            <p>Pick a sender on the left, then open a chat.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
 
-    <script>
-      const tokenKey = "chatToken";
-      const senderKey = "chatSender";
-      const themeKey = "chatTheme";
-      const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
-      let rosterPeople = [];
-      let selectedChatId = "";
-      let selectedChat = null;
-      let threadMessages = [];
-      let pollTimer = 0;
-      let autoFetchFor = "";
-      let selecting = false;
+  <script>
+    const tokenKey = "chatToken";
+    const senderKey = "chatSender";
+    const themeKey = "chatTheme";
+    const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
+    let rosterPeople = [];
+    let selectedChatId = "";
+    let selectedChat = null;
+    let threadMessages = [];
+    let pollTimer = 0;
+    let autoFetchFor = "";
+    let selecting = false;
+    let searchHits = [];
+    let searchIndex = -1;
+    let lastPaintChat = "";
+    let lastPaintQuery = "";
+    let lastPaintCount = -1;
+    let forceSearchScroll = false;
 
-      function applyTheme(mode) {
-        const dark = mode === "dark";
-        document.documentElement.classList.toggle("dark", dark);
-        localStorage.setItem(themeKey, dark ? "dark" : "light");
-        const themeBtn = document.getElementById("themeBtn");
-        if (themeBtn) themeBtn.textContent = dark ? "Light" : "Dark";
-      }
+    function applyTheme(mode) {
+      const dark = mode === "dark";
+      document.documentElement.classList.toggle("dark", dark);
+      localStorage.setItem(themeKey, dark ? "dark" : "light");
+      const themeBtn = document.getElementById("themeBtn");
+      if (themeBtn) themeBtn.textContent = dark ? "Light" : "Dark";
+    }
 
-      applyTheme(localStorage.getItem(themeKey) === "dark" ? "dark" : "light");
+    applyTheme(localStorage.getItem(themeKey) === "dark" ? "dark" : "light");
 
-      const gate = document.getElementById("gate");
-      const app = document.getElementById("app");
-      const statusEl = document.getElementById("status");
-      const listEl = document.getElementById("list");
-      const threadEl = document.getElementById("thread");
-      const threadHeader = document.getElementById("threadHeader");
-      const titleEl = document.getElementById("threadTitle");
-      const subtitleEl = document.getElementById("threadSubtitle");
-      const senderFilter = document.getElementById("senderFilter");
-      const senderTitle = document.getElementById("senderTitle");
-      const senderSubtitle = document.getElementById("senderSubtitle");
-      const senderAvatar = document.getElementById("senderAvatar");
-      const chatAvatar = document.getElementById("chatAvatar");
-      const pane = document.getElementById("pane");
-      const monthsSelect = document.getElementById("monthsSelect");
-      const fetchChatBtn = document.getElementById("fetchChatBtn");
+    const gate = document.getElementById("gate");
+    const app = document.getElementById("app");
+    const statusEl = document.getElementById("status");
+    const listEl = document.getElementById("list");
+    const threadEl = document.getElementById("thread");
+    const threadHeader = document.getElementById("threadHeader");
+    const titleEl = document.getElementById("threadTitle");
+    const subtitleEl = document.getElementById("threadSubtitle");
+    const senderFilter = document.getElementById("senderFilter");
+    const senderTitle = document.getElementById("senderTitle");
+    const senderSubtitle = document.getElementById("senderSubtitle");
+    const senderAvatar = document.getElementById("senderAvatar");
+    const chatAvatar = document.getElementById("chatAvatar");
+    const pane = document.getElementById("pane");
+    const monthsSelect = document.getElementById("monthsSelect");
+    const fetchChatBtn = document.getElementById("fetchChatBtn");
+    const peopleSearch = document.getElementById("peopleSearch");
+    const messageSearch = document.getElementById("messageSearch");
+    const searchCount = document.getElementById("searchCount");
+    const searchPrev = document.getElementById("searchPrev");
+    const searchNext = document.getElementById("searchNext");
+    const dateJump = document.getElementById("dateJump");
 
-      const avatarColors = ["#00a884", "#53bdeb", "#06cf9c", "#a855f7", "#ea580c", "#0284c7", "#db2777"];
+    const avatarColors = ["#00a884", "#53bdeb", "#06cf9c", "#a855f7", "#ea580c", "#0284c7", "#db2777"];
 
-      function initials(name) {
-        const parts = String(name || "?").trim().split(/\s+/).filter(Boolean);
-        if (!parts.length) return "?";
-        if (parts.length === 1) return parts[0].slice(0, 2);
-        return `${parts[0][0] || ""}${parts[1][0] || ""}`;
-      }
+    function initials(name) {
+      const parts = String(name || "?").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "?";
+      if (parts.length === 1) return parts[0].slice(0, 2);
+      return `${parts[0][0] || ""}${parts[1][0] || ""}`;
+    }
 
-      function colorFor(name) {
-        let hash = 0;
-        const raw = String(name || "");
-        for (let i = 0; i < raw.length; i += 1) hash = (hash + raw.charCodeAt(i) * (i + 1)) % 997;
-        return avatarColors[hash % avatarColors.length];
-      }
+    function colorFor(name) {
+      let hash = 0;
+      const raw = String(name || "");
+      for (let i = 0; i < raw.length; i += 1) hash = (hash + raw.charCodeAt(i) * (i + 1)) % 997;
+      return avatarColors[hash % avatarColors.length];
+    }
 
-      function setAvatar(el, name) {
-        el.textContent = initials(name);
-        el.style.background = colorFor(name);
-      }
+    function setAvatar(el, name) {
+      el.textContent = initials(name);
+      el.style.background = colorFor(name);
+    }
 
-      function parseMessages(text) {
-        const messages = [];
-        for (const rawLine of String(text || "").split("\n")) {
-          const match = rawLine.match(lineRe);
-          if (match) {
-            messages.push({
-              date: match[1],
-              time: match[2],
-              sender: match[3],
-              body: match[4],
-            });
-          } else if (messages.length && rawLine) {
-            messages[messages.length - 1].body += `\n${rawLine}`;
-          }
-        }
-        return messages;
-      }
-
-      function messageSortKey(message) {
-        const [dd, mm, yyyy] = String(message.date || "").split("/");
-        return `${yyyy || ""}-${mm || ""}-${dd || ""}T${message.time || "00:00:00"}`;
-      }
-
-      function activeSender() {
-        return senderFilter.value;
-      }
-
-      function formatWhen(lastTs) {
-        if (!lastTs) return "";
-        const ms = lastTs > 1e12 ? lastTs : lastTs * 1000;
-        const d = new Date(ms);
-        if (Number.isNaN(d.getTime())) return "";
-        const pad = (n) => String(n).padStart(2, "0");
-        return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-      }
-
-      function fillSenderFilter(senders) {
-        const names = (senders || []).map((item) => item.senderName).filter(Boolean);
-        const saved = sessionStorage.getItem(senderKey) || "";
-        const previous = senderFilter.value || saved;
-        senderFilter.innerHTML = '<option value="">Choose a sender…</option>';
-        for (const name of names) {
-          const option = document.createElement("option");
-          option.value = name;
-          option.textContent = name;
-          senderFilter.appendChild(option);
-        }
-        if (names.includes(previous)) {
-          senderFilter.value = previous;
-        } else if (names.length === 1) {
-          senderFilter.value = names[0];
-        } else {
-          senderFilter.value = "";
-        }
-        if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
-      }
-
-      function updateSenderChrome() {
-        const sender = activeSender();
-        if (!sender) {
-          senderTitle.textContent = "Select a sender";
-          senderSubtitle.textContent = "One phone at a time";
-          setAvatar(senderAvatar, "?");
-          senderAvatar.classList.add("teal");
-          return;
-        }
-        senderAvatar.classList.remove("teal");
-        setAvatar(senderAvatar, sender);
-        senderTitle.textContent = sender;
-        const n = rosterPeople.length;
-        senderSubtitle.textContent = `${n} people`;
-      }
-
-      function setStatus(text, isError) {
-        statusEl.textContent = text;
-        statusEl.classList.toggle("error", Boolean(isError));
-      }
-
-      async function api(path, options = {}) {
-        const token = sessionStorage.getItem(tokenKey) || "";
-        const response = await fetch(path, {
-          ...options,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(options.body ? { "Content-Type": "application/json" } : {}),
-          },
-        });
-        const data = await response.json().catch(() => ({}));
-        if (response.status === 401) {
-          sessionStorage.removeItem(tokenKey);
-          showGate("That token was rejected.");
-          throw new Error("Unauthorized");
-        }
-        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-        return data;
-      }
-
-      function showGate(message) {
-        app.style.display = "none";
-        gate.style.display = "grid";
-        document.getElementById("gateError").textContent = message || "";
-      }
-
-      function showApp() {
-        gate.style.display = "none";
-        app.style.display = "grid";
-      }
-
-      function renderList() {
-        listEl.innerHTML = "";
-        updateSenderChrome();
-        if (!activeSender()) {
-          listEl.innerHTML = '<div class="empty">Choose a sender above to see that phone’s people.</div>';
-          return;
-        }
-        if (!rosterPeople.length) {
-          listEl.innerHTML = '<div class="empty">No people list yet. Click Sync people list.</div>';
-          return;
-        }
-        for (const chat of rosterPeople) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}`;
-          const avatar = document.createElement("div");
-          avatar.className = "avatar sm";
-          setAvatar(avatar, chat.chatName);
-          const row = document.createElement("div");
-          row.className = "row";
-          row.innerHTML = `<div class="top"><div class="name"></div><div class="when"></div></div><div class="preview"></div>`;
-          row.querySelector(".name").textContent = chat.chatName;
-          row.querySelector(".when").textContent = formatWhen(chat.lastTs);
-          row.querySelector(".preview").textContent = chat.isGroup ? "Group" : "Tap to load chat";
-          button.appendChild(avatar);
-          button.appendChild(row);
-          button.addEventListener("click", () => {
-            selectPerson(chat).catch((err) => setStatus(err.message, true));
+    function parseMessages(text) {
+      const messages = [];
+      for (const rawLine of String(text || "").split("\n")) {
+        const match = rawLine.match(lineRe);
+        if (match) {
+          messages.push({
+            date: match[1],
+            time: match[2],
+            sender: match[3],
+            body: match[4],
           });
-          listEl.appendChild(button);
+        } else if (messages.length && rawLine) {
+          messages[messages.length - 1].body += `\n${rawLine}`;
         }
       }
+      return messages;
+    }
 
-      function renderThread(statusNote) {
-        threadEl.innerHTML = "";
-        if (!activeSender()) {
-          selectedChat = null;
-          threadHeader.classList.remove("visible");
-          pane.classList.add("empty-pane");
-          threadEl.innerHTML = `<div class="pane-empty"><h2>WhatsApp viewer</h2><p>Choose one sender first. Then open one person to load their chat.</p></div>`;
-          return;
+    function messageSortKey(message) {
+      const [dd, mm, yyyy] = String(message.date || "").split("/");
+      return `${yyyy || ""}-${mm || ""}-${dd || ""}T${message.time || "00:00:00"}`;
+    }
+
+    function activeSender() {
+      return senderFilter.value;
+    }
+
+    function formatWhen(lastTs) {
+      if (!lastTs) return "";
+      const ms = lastTs > 1e12 ? lastTs : lastTs * 1000;
+      const d = new Date(ms);
+      if (Number.isNaN(d.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    }
+
+    function formatTime12(time) {
+      const match = String(time || "").match(/^(\d{2}):(\d{2})/);
+      if (!match) return String(time || "");
+      let hour = Number(match[1]);
+      const suffix = hour >= 12 ? "PM" : "AM";
+      hour = hour % 12 || 12;
+      return `${hour}:${match[2]} ${suffix}`;
+    }
+
+    function formatStamp(message) {
+      const clock = formatTime12(message.time);
+      if (message.date && clock) return `${message.date}, ${clock}`;
+      return message.date || clock;
+    }
+
+    function looksLikeMediaPayload(value) {
+      const text = String(value || "").trim();
+      if (!text) return false;
+      if (text.includes(".enc") || /[?&]oh=/.test(text)) return true;
+      return text.length > 180 && !/\s/.test(text);
+    }
+
+    function mediaDisplay(body) {
+      const text = String(body || "").trim();
+      if (/^\/9j\//.test(text) || /^data:image\//i.test(text)) {
+        return { label: "Photo", caption: "" };
+      }
+      const match = text.match(/^\[(image|photo|video|album)\](?:\s+(\S+))?(?:\s+([\s\S]+))?$/i);
+      if (!match) return null;
+      const type = match[1].toLowerCase();
+      const label = type === "video" ? "Video" : type === "album" ? "Album" : "Photo";
+      let caption = (match[3] || "").trim();
+      if (looksLikeMediaPayload(caption)) caption = "";
+      return { label, caption };
+    }
+
+    function appendHighlighted(parent, text, query) {
+      const value = String(text || "");
+      const needle = query.trim().toLowerCase();
+      if (!needle) {
+        parent.textContent = value;
+        return 0;
+      }
+      const haystack = value.toLowerCase();
+      let start = 0;
+      let count = 0;
+      let index = haystack.indexOf(needle, start);
+      if (index < 0) {
+        parent.textContent = value;
+        return 0;
+      }
+      while (index >= 0) {
+        if (index > start) parent.appendChild(document.createTextNode(value.slice(start, index)));
+        const mark = document.createElement("mark");
+        mark.textContent = value.slice(index, index + needle.length);
+        parent.appendChild(mark);
+        count += 1;
+        start = index + needle.length;
+        index = haystack.indexOf(needle, start);
+      }
+      if (start < value.length) parent.appendChild(document.createTextNode(value.slice(start)));
+      return count;
+    }
+
+    function updateSearchChrome() {
+      const query = messageSearch.value.trim();
+      searchHits.forEach((el, index) => el.classList.toggle("search-current", index === searchIndex));
+      if (!query) searchCount.textContent = "";
+      else if (!searchHits.length) searchCount.textContent = "No matches";
+      else searchCount.textContent = `${searchIndex + 1} / ${searchHits.length}`;
+      const disabled = searchHits.length < 2;
+      searchPrev.disabled = disabled;
+      searchNext.disabled = disabled;
+    }
+
+    function fillDateJump() {
+      const current = dateJump.value;
+      const dates = [];
+      const counts = new Map();
+      for (const message of threadMessages) {
+        if (!message.date) continue;
+        if (!counts.has(message.date)) dates.push(message.date);
+        counts.set(message.date, (counts.get(message.date) || 0) + 1);
+      }
+      dateJump.replaceChildren();
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = dates.length ? "Jump to date" : "No dates";
+      dateJump.appendChild(placeholder);
+      for (const date of dates) {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = `${date} (${counts.get(date)})`;
+        dateJump.appendChild(option);
+      }
+      dateJump.disabled = dates.length === 0;
+      dateJump.value = dates.includes(current) ? current : "";
+    }
+
+    function moveSearch(step) {
+      if (searchHits.length < 2) return;
+      searchIndex = (searchIndex + step + searchHits.length) % searchHits.length;
+      updateSearchChrome();
+      searchHits[searchIndex].scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+
+    function fillSenderFilter(senders) {
+      const names = (senders || []).map((item) => item.senderName).filter(Boolean);
+      const saved = sessionStorage.getItem(senderKey) || "";
+      const previous = senderFilter.value || saved;
+      senderFilter.innerHTML = '<option value="">Choose a sender…</option>';
+      for (const name of names) {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        senderFilter.appendChild(option);
+      }
+      if (names.includes(previous)) {
+        senderFilter.value = previous;
+      } else if (names.length === 1) {
+        senderFilter.value = names[0];
+      } else {
+        senderFilter.value = "";
+      }
+      if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
+    }
+
+    function updateSenderChrome() {
+      const sender = activeSender();
+      if (!sender) {
+        senderTitle.textContent = "Select a sender";
+        senderSubtitle.textContent = "One phone at a time";
+        setAvatar(senderAvatar, "?");
+        senderAvatar.classList.add("teal");
+        return;
+      }
+      senderAvatar.classList.remove("teal");
+      setAvatar(senderAvatar, sender);
+      senderTitle.textContent = sender;
+      const n = rosterPeople.length;
+      senderSubtitle.textContent = `${n} people`;
+    }
+
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle("error", Boolean(isError));
+    }
+
+    async function api(path, options = {}) {
+      const token = sessionStorage.getItem(tokenKey) || "";
+      const response = await fetch(path, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        sessionStorage.removeItem(tokenKey);
+        showGate("That token was rejected.");
+        throw new Error("Unauthorized");
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      return data;
+    }
+
+    function showGate(message) {
+      app.style.display = "none";
+      gate.style.display = "grid";
+      document.getElementById("gateError").textContent = message || "";
+    }
+
+    function showApp() {
+      gate.style.display = "none";
+      app.style.display = "grid";
+    }
+
+    function renderList() {
+      listEl.innerHTML = "";
+      updateSenderChrome();
+      if (!activeSender()) {
+        listEl.innerHTML = '<div class="empty">Choose a sender above to see that phone’s people.</div>';
+        return;
+      }
+      if (!rosterPeople.length) {
+        listEl.innerHTML = '<div class="empty">No people list yet. Click Sync people list.</div>';
+        return;
+      }
+      const query = peopleSearch.value.trim().toLowerCase();
+      const people = query
+        ? rosterPeople.filter((chat) => String(chat.chatName || "").toLowerCase().includes(query))
+        : rosterPeople;
+      if (!people.length) {
+        const note = document.createElement("div");
+        note.className = "empty";
+        note.textContent = "No people match that search.";
+        listEl.appendChild(note);
+        return;
+      }
+      for (const chat of people) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}`;
+        const avatar = document.createElement("div");
+        avatar.className = "avatar sm";
+        setAvatar(avatar, chat.chatName);
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `<div class="top"><div class="name"></div><div class="when"></div></div><div class="preview"></div>`;
+        row.querySelector(".name").textContent = chat.chatName;
+        row.querySelector(".when").textContent = formatWhen(chat.lastTs);
+        row.querySelector(".preview").textContent = chat.isGroup ? "Group" : "Tap to load chat";
+        button.appendChild(avatar);
+        button.appendChild(row);
+        button.addEventListener("click", () => {
+          selectPerson(chat).catch((err) => setStatus(err.message, true));
+        });
+        listEl.appendChild(button);
+      }
+    }
+
+    function renderThread(statusNote) {
+      const previousScroll = threadEl.scrollTop;
+      const query = messageSearch.value.trim();
+      const chatChanged = selectedChatId !== lastPaintChat;
+      const queryChanged = query !== lastPaintQuery;
+      const countChanged = threadMessages.length !== lastPaintCount;
+      threadEl.innerHTML = "";
+      if (!activeSender()) {
+        selectedChat = null;
+        threadHeader.classList.remove("visible");
+        pane.classList.add("empty-pane");
+        threadEl.innerHTML = `<div class="pane-empty"><h2>WhatsApp viewer</h2><p>Choose one sender first. Then open one person to load their chat.</p></div>`;
+        searchHits = [];
+        searchIndex = -1;
+        updateSearchChrome();
+        fillDateJump();
+        return;
+      }
+      if (!selectedChat) {
+        threadHeader.classList.remove("visible");
+        pane.classList.add("empty-pane");
+        const empty = document.createElement("div");
+        empty.className = "pane-empty";
+        const heading = document.createElement("h2");
+        heading.textContent = activeSender();
+        const copy = document.createElement("p");
+        copy.textContent = "Select a person from the list. Messages load only for that chat.";
+        empty.appendChild(heading);
+        empty.appendChild(copy);
+        threadEl.appendChild(empty);
+        searchHits = [];
+        searchIndex = -1;
+        updateSearchChrome();
+        fillDateJump();
+        return;
+      }
+
+      pane.classList.remove("empty-pane");
+      threadHeader.classList.add("visible");
+      titleEl.textContent = selectedChat.chatName;
+      subtitleEl.textContent = selectedChat.isGroup ? "Group" : "Chat";
+      setAvatar(chatAvatar, selectedChat.chatName);
+
+      if (statusNote) {
+        const note = document.createElement("div");
+        note.className = "empty";
+        note.textContent = statusNote;
+        threadEl.appendChild(note);
+      }
+
+      if (!threadMessages.length) {
+        if (!statusNote) {
+          threadEl.innerHTML = '<div class="empty">No messages loaded yet for this chat.</div>';
         }
-        if (!selectedChat) {
-          threadHeader.classList.remove("visible");
-          pane.classList.add("empty-pane");
-          threadEl.innerHTML = `<div class="pane-empty"><h2>${activeSender()}</h2><p>Select a person from the list. Messages load only for that chat.</p></div>`;
-          return;
+        searchHits = [];
+        searchIndex = -1;
+        updateSearchChrome();
+        fillDateJump();
+        lastPaintChat = selectedChatId;
+        lastPaintQuery = query;
+        lastPaintCount = 0;
+        return;
+      }
+
+      let lastDate = "";
+      for (const message of threadMessages) {
+        if (message.date && message.date !== lastDate) {
+          lastDate = message.date;
+          const pill = document.createElement("div");
+          pill.className = "day-pill";
+          pill.dataset.date = message.date;
+          pill.textContent = message.date;
+          threadEl.appendChild(pill);
         }
-
-        pane.classList.remove("empty-pane");
-        threadHeader.classList.add("visible");
-        titleEl.textContent = selectedChat.chatName;
-        subtitleEl.textContent = selectedChat.isGroup ? "Group" : "Chat";
-        setAvatar(chatAvatar, selectedChat.chatName);
-
-        if (statusNote) {
-          const note = document.createElement("div");
-          note.className = "empty";
-          note.textContent = statusNote;
-          threadEl.appendChild(note);
+        const bubble = document.createElement("div");
+        const sender = String(message.sender || "").trim();
+        const kind =
+          /^you$/i.test(sender) ? "me" : /^system$/i.test(sender) ? "system" : "them";
+        bubble.className = `bubble ${kind}`;
+        let hits = 0;
+        if (kind === "them" && sender) {
+          const who = document.createElement("div");
+          who.className = "who";
+          who.style.color = colorFor(sender);
+          hits += appendHighlighted(who, sender, query);
+          bubble.appendChild(who);
         }
-
-        if (!threadMessages.length) {
-          if (!statusNote) {
-            threadEl.innerHTML = '<div class="empty">No messages loaded yet for this chat.</div>';
+        const media = mediaDisplay(message.body);
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = formatStamp(message);
+        if (media) {
+          bubble.classList.add("media");
+          const label = document.createElement("div");
+          label.className = "media-label";
+          hits += appendHighlighted(label, media.label, query);
+          bubble.appendChild(label);
+          if (media.caption) {
+            const body = document.createElement("div");
+            body.className = "body";
+            hits += appendHighlighted(body, media.caption, query);
+            bubble.appendChild(body);
           }
-          return;
-        }
-
-        let lastDate = "";
-        for (const message of threadMessages) {
-          if (message.date && message.date !== lastDate) {
-            lastDate = message.date;
-            const pill = document.createElement("div");
-            pill.className = "day-pill";
-            pill.textContent = message.date;
-            threadEl.appendChild(pill);
-          }
-          const bubble = document.createElement("div");
-          const sender = String(message.sender || "").trim();
-          const kind =
-            /^you$/i.test(sender) ? "me" : /^system$/i.test(sender) ? "system" : "them";
-          bubble.className = `bubble ${kind}`;
-          if (kind === "them" && sender) {
-            const who = document.createElement("div");
-            who.className = "who";
-            who.textContent = sender;
-            who.style.color = colorFor(sender);
-            bubble.appendChild(who);
-          }
+          const needle = query.trim().toLowerCase();
+          if (needle && String(message.body || "").toLowerCase().includes(needle)) hits += 1;
+        } else {
           const body = document.createElement("div");
           body.className = "body";
-          body.textContent = message.body;
-          const meta = document.createElement("span");
-          meta.className = "meta";
-          meta.textContent = message.time || "";
+          hits += appendHighlighted(body, message.body, query);
           bubble.appendChild(body);
-          bubble.appendChild(meta);
-          threadEl.appendChild(bubble);
         }
+        if (query && hits > 0) bubble.classList.add("search-hit");
+        bubble.appendChild(meta);
+        threadEl.appendChild(bubble);
+      }
+
+      searchHits = [...threadEl.querySelectorAll(".bubble.search-hit")];
+      if (query) {
+        if (chatChanged || queryChanged || searchIndex < 0 || searchIndex >= searchHits.length) {
+          searchIndex = searchHits.length ? 0 : -1;
+        }
+      } else {
+        searchIndex = -1;
+      }
+      updateSearchChrome();
+      fillDateJump();
+
+      if (query && searchHits.length && (chatChanged || queryChanged || forceSearchScroll)) {
+        searchHits[Math.max(searchIndex, 0)].scrollIntoView({ block: "center" });
+      } else if (chatChanged || countChanged || statusNote) {
         threadEl.scrollTop = threadEl.scrollHeight;
+      } else {
+        threadEl.scrollTop = previousScroll;
       }
+      forceSearchScroll = false;
+      lastPaintChat = selectedChatId;
+      lastPaintQuery = query;
+      lastPaintCount = threadMessages.length;
+    }
 
-      async function loadSenderRoster() {
-        const sender = activeSender();
-        if (!sender) {
-          rosterPeople = [];
-          selectedChatId = "";
-          selectedChat = null;
-          threadMessages = [];
-          renderList();
-          renderThread();
-          return 0;
-        }
-        const data = await api(`/roster?senderName=${encodeURIComponent(sender)}`);
-        rosterPeople = (data.chats || [])
-          .slice()
-          .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
-        if (selectedChatId && !rosterPeople.some((chat) => chat.chatId === selectedChatId)) {
-          selectedChatId = "";
-          selectedChat = null;
-          threadMessages = [];
-        }
+    async function loadSenderRoster() {
+      const sender = activeSender();
+      if (!sender) {
+        rosterPeople = [];
+        selectedChatId = "";
+        selectedChat = null;
+        threadMessages = [];
         renderList();
-        return rosterPeople.length;
+        renderThread();
+        return 0;
       }
+      const data = await api(`/roster?senderName=${encodeURIComponent(sender)}`);
+      rosterPeople = (data.chats || [])
+        .slice()
+        .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+      if (selectedChatId && !rosterPeople.some((chat) => chat.chatId === selectedChatId)) {
+        selectedChatId = "";
+        selectedChat = null;
+        threadMessages = [];
+      }
+      renderList();
+      return rosterPeople.length;
+    }
 
-      async function loadSelectedThread() {
-        const sender = activeSender();
-        if (!sender || !selectedChatId) {
-          threadMessages = [];
-          return 0;
+    async function loadSelectedThread() {
+      const sender = activeSender();
+      if (!sender || !selectedChatId) {
+        threadMessages = [];
+        return 0;
+      }
+      const data = await api(
+        `/exports?senderName=${encodeURIComponent(sender)}&chatId=${encodeURIComponent(selectedChatId)}&includeText=1`,
+      );
+      const items = data.items || [];
+      const messages = items.flatMap((item) => parseMessages(item.text || ""));
+      messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
+      threadMessages = messages;
+      return messages.length;
+    }
+
+    async function requestChatFetch(chat, months) {
+      const sender = activeSender();
+      await api("/trigger", {
+        method: "POST",
+        body: JSON.stringify({
+          senderName: sender,
+          chatId: chat.chatId,
+          chatName: chat.chatName,
+          months,
+        }),
+      });
+    }
+
+    async function selectPerson(chat) {
+      if (selecting) return;
+      selecting = true;
+      try {
+        selectedChatId = chat.chatId;
+        selectedChat = chat;
+        autoFetchFor = "";
+        threadMessages = [];
+        messageSearch.value = "";
+        searchIndex = -1;
+        renderList();
+        renderThread("Loading…");
+        const count = await loadSelectedThread();
+        if (count) {
+          renderThread();
+          setStatus(`Showing ${count} messages for ${chat.chatName}.`);
+          return;
         }
-        const data = await api(
-          `/exports?senderName=${encodeURIComponent(sender)}&chatId=${encodeURIComponent(selectedChatId)}&includeText=1`,
+        const months = Number(monthsSelect.value) || 2;
+        autoFetchFor = chat.chatId;
+        renderThread(`No stored messages. Fetching ${months} month${months === 1 ? "" : "s"}…`);
+        setStatus(
+          `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${activeSender()}. Leave WhatsApp Web open.`,
         );
-        const items = data.items || [];
-        const messages = items.flatMap((item) => parseMessages(item.text || ""));
-        messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
-        threadMessages = messages;
-        return messages.length;
+        await requestChatFetch(chat, months);
+        waitForUpload(fetchChatBtn);
+      } finally {
+        selecting = false;
       }
+    }
 
-      async function requestChatFetch(chat, months) {
-        const sender = activeSender();
-        await api("/trigger", {
-          method: "POST",
-          body: JSON.stringify({
-            senderName: sender,
-            chatId: chat.chatId,
-            chatName: chat.chatName,
-            months,
-          }),
-        });
+    async function refresh() {
+      setStatus("Loading…");
+      const sendersData = await api("/roster");
+      fillSenderFilter(sendersData.senders || []);
+      const count = await loadSenderRoster();
+      if (selectedChatId) {
+        const person = rosterPeople.find((chat) => chat.chatId === selectedChatId);
+        if (person) selectedChat = person;
+        await loadSelectedThread();
+        renderThread();
+      } else {
+        renderThread();
       }
+      const trigger = await api("/trigger");
+      const who = trigger.senderName ? ` (${trigger.senderName})` : "";
+      const senderNote = trigger.senderStatus
+        ? ` Sender${who}: ${trigger.senderStatus}`
+        : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
+      if (trigger.export_requested) {
+        const one = trigger.requestChatId
+          ? ` Fetching “${trigger.requestChatName || trigger.requestChatId}” (${trigger.requestMonths || "?"} mo) for ${trigger.requestSenderName || "sender"}.`
+          : " Waiting for people-list sync.";
+        setStatus(`${one} ${count} people listed.${senderNote}`, !trigger.senderAt);
+      } else {
+        setStatus(
+          count
+            ? `${count} people listed.${senderNote}`
+            : `No people list yet. Click Sync people list.${senderNote}`,
+        );
+      }
+      return trigger.export_requested;
+    }
 
-      async function selectPerson(chat) {
-        if (selecting) return;
-        selecting = true;
+    function waitForUpload(button) {
+      clearInterval(pollTimer);
+      if (button) button.disabled = true;
+      fetchChatBtn.disabled = true;
+      document.getElementById("pullBtn").disabled = true;
+      let tries = 0;
+      pollTimer = setInterval(async () => {
+        tries += 1;
         try {
-          selectedChatId = chat.chatId;
-          selectedChat = chat;
-          autoFetchFor = "";
-          renderList();
-          renderThread("Loading…");
-          const count = await loadSelectedThread();
-          if (count) {
-            renderThread();
-            setStatus(`Showing ${count} messages for ${chat.chatName}.`);
+          const waiting = await refresh();
+          if (autoFetchFor && selectedChatId === autoFetchFor && threadMessages.length) {
+            clearInterval(pollTimer);
+            autoFetchFor = "";
+            fetchChatBtn.disabled = false;
+            document.getElementById("pullBtn").disabled = false;
+            if (button) button.disabled = false;
+            setStatus(`Loaded ${threadMessages.length} messages for ${selectedChat?.chatName || "chat"}.`);
             return;
           }
-          const months = Number(monthsSelect.value) || 2;
-          autoFetchFor = chat.chatId;
-          renderThread(`No stored messages. Fetching ${months} month${months === 1 ? "" : "s"}…`);
-          setStatus(
-            `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${activeSender()}. Leave WhatsApp Web open.`,
-          );
-          await requestChatFetch(chat, months);
-          waitForUpload(fetchChatBtn);
-        } finally {
-          selecting = false;
-        }
-      }
-
-      async function refresh() {
-        setStatus("Loading…");
-        const sendersData = await api("/roster");
-        fillSenderFilter(sendersData.senders || []);
-        const count = await loadSenderRoster();
-        if (selectedChatId) {
-          const person = rosterPeople.find((chat) => chat.chatId === selectedChatId);
-          if (person) selectedChat = person;
-          await loadSelectedThread();
-          renderThread();
-        } else {
-          renderThread();
-        }
-        const trigger = await api("/trigger");
-        const who = trigger.senderName ? ` (${trigger.senderName})` : "";
-        const senderNote = trigger.senderStatus
-          ? ` Sender${who}: ${trigger.senderStatus}`
-          : " Sender extension has not checked in. Reload it, save the Render URL, token, and sender name, and keep WhatsApp Web open.";
-        if (trigger.export_requested) {
-          const one = trigger.requestChatId
-            ? ` Fetching “${trigger.requestChatName || trigger.requestChatId}” (${trigger.requestMonths || "?"} mo) for ${trigger.requestSenderName || "sender"}.`
-            : " Waiting for people-list sync.";
-          setStatus(`${one} ${count} people listed.${senderNote}`, !trigger.senderAt);
-        } else {
-          setStatus(
-            count
-              ? `${count} people listed.${senderNote}`
-              : `No people list yet. Click Sync people list.${senderNote}`,
-          );
-        }
-        return trigger.export_requested;
-      }
-
-      function waitForUpload(button) {
-        clearInterval(pollTimer);
-        if (button) button.disabled = true;
-        fetchChatBtn.disabled = true;
-        document.getElementById("pullBtn").disabled = true;
-        let tries = 0;
-        pollTimer = setInterval(async () => {
-          tries += 1;
-          try {
-            const waiting = await refresh();
-            if (autoFetchFor && selectedChatId === autoFetchFor && threadMessages.length) {
-              clearInterval(pollTimer);
-              autoFetchFor = "";
-              fetchChatBtn.disabled = false;
-              document.getElementById("pullBtn").disabled = false;
-              if (button) button.disabled = false;
-              setStatus(`Loaded ${threadMessages.length} messages for ${selectedChat?.chatName || "chat"}.`);
-              return;
-            }
-            if (!waiting || tries >= 36) {
-              clearInterval(pollTimer);
-              if (button) button.disabled = false;
-              fetchChatBtn.disabled = false;
-              document.getElementById("pullBtn").disabled = false;
-              if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
-            }
-          } catch (err) {
+          if (!waiting || tries >= 36) {
             clearInterval(pollTimer);
             if (button) button.disabled = false;
             fetchChatBtn.disabled = false;
             document.getElementById("pullBtn").disabled = false;
-            setStatus(err.message, true);
+            if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
           }
-        }, 5000);
-      }
-
-      document.getElementById("gateForm").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
-        try {
-          showApp();
-          await refresh();
         } catch (err) {
-          if (sessionStorage.getItem(tokenKey)) showGate(err.message);
-        }
-      });
-
-      document.getElementById("refreshBtn").addEventListener("click", () => {
-        refresh().catch((err) => setStatus(err.message, true));
-      });
-
-      document.getElementById("themeBtn").addEventListener("click", () => {
-        applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
-      });
-
-      senderFilter.addEventListener("change", () => {
-        if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
-        else sessionStorage.removeItem(senderKey);
-        selectedChatId = "";
-        selectedChat = null;
-        threadMessages = [];
-        autoFetchFor = "";
-        loadSenderRoster()
-          .then(() => renderThread())
-          .catch((err) => setStatus(err.message, true));
-      });
-
-      document.getElementById("pullBtn").addEventListener("click", async () => {
-        const button = document.getElementById("pullBtn");
-        try {
-          await api("/trigger", { method: "POST", body: "{}" });
-          setStatus("People-list sync requested. Leave WhatsApp Web open on the sender. Checking…");
-          waitForUpload(button);
-        } catch (err) {
-          button.disabled = false;
-          setStatus(err.message, true);
-        }
-      });
-
-      fetchChatBtn.addEventListener("click", async () => {
-        const sender = activeSender();
-        const chat = selectedChat || rosterPeople.find((item) => item.chatId === selectedChatId);
-        const months = Number(monthsSelect.value) || 2;
-        if (!sender) {
-          setStatus("Choose a sender first.", true);
-          return;
-        }
-        if (!chat) {
-          setStatus("Open a person from the list first.", true);
-          return;
-        }
-        try {
-          autoFetchFor = chat.chatId;
-          renderThread(`Fetching ${months} month${months === 1 ? "" : "s"}…`);
-          setStatus(
-            `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${sender}. Leave WhatsApp Web open.`,
-          );
-          await requestChatFetch(chat, months);
-          waitForUpload(fetchChatBtn);
-        } catch (err) {
+          clearInterval(pollTimer);
+          if (button) button.disabled = false;
           fetchChatBtn.disabled = false;
           document.getElementById("pullBtn").disabled = false;
           setStatus(err.message, true);
         }
-      });
+      }, 5000);
+    }
 
-      if (sessionStorage.getItem(tokenKey)) {
+    document.getElementById("gateForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      sessionStorage.setItem(tokenKey, document.getElementById("tokenInput").value.trim());
+      try {
         showApp();
-        refresh().catch((err) => setStatus(err.message, true));
+        await refresh();
+      } catch (err) {
+        if (sessionStorage.getItem(tokenKey)) showGate(err.message);
       }
-    </script>
-  </body>
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      refresh().catch((err) => setStatus(err.message, true));
+    });
+
+    document.getElementById("themeBtn").addEventListener("click", () => {
+      applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
+    });
+
+    peopleSearch.addEventListener("input", () => {
+      renderList();
+    });
+
+    let searchTimer = 0;
+    messageSearch.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        forceSearchScroll = true;
+        searchIndex = 0;
+        renderThread();
+      }, 120);
+    });
+
+    messageSearch.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      moveSearch(event.shiftKey ? -1 : 1);
+    });
+
+    searchPrev.addEventListener("click", () => moveSearch(-1));
+    searchNext.addEventListener("click", () => moveSearch(1));
+
+    dateJump.addEventListener("change", () => {
+      const date = dateJump.value;
+      if (!date) return;
+      const pill = threadEl.querySelector(`.day-pill[data-date="${CSS.escape(date)}"]`);
+      if (pill) pill.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+
+    senderFilter.addEventListener("change", () => {
+      if (senderFilter.value) sessionStorage.setItem(senderKey, senderFilter.value);
+      else sessionStorage.removeItem(senderKey);
+      selectedChatId = "";
+      selectedChat = null;
+      threadMessages = [];
+      autoFetchFor = "";
+      peopleSearch.value = "";
+      messageSearch.value = "";
+      searchIndex = -1;
+      loadSenderRoster()
+        .then(() => renderThread())
+        .catch((err) => setStatus(err.message, true));
+    });
+
+    document.getElementById("pullBtn").addEventListener("click", async () => {
+      const button = document.getElementById("pullBtn");
+      try {
+        await api("/trigger", { method: "POST", body: "{}" });
+        setStatus("People-list sync requested. Leave WhatsApp Web open on the sender. Checking…");
+        waitForUpload(button);
+      } catch (err) {
+        button.disabled = false;
+        setStatus(err.message, true);
+      }
+    });
+
+    fetchChatBtn.addEventListener("click", async () => {
+      const sender = activeSender();
+      const chat = selectedChat || rosterPeople.find((item) => item.chatId === selectedChatId);
+      const months = Number(monthsSelect.value) || 2;
+      if (!sender) {
+        setStatus("Choose a sender first.", true);
+        return;
+      }
+      if (!chat) {
+        setStatus("Open a person from the list first.", true);
+        return;
+      }
+      try {
+        autoFetchFor = chat.chatId;
+        renderThread(`Fetching ${months} month${months === 1 ? "" : "s"}…`);
+        setStatus(
+          `Fetching “${chat.chatName}” for ${months} month${months === 1 ? "" : "s"} from ${sender}. Leave WhatsApp Web open.`,
+        );
+        await requestChatFetch(chat, months);
+        waitForUpload(fetchChatBtn);
+      } catch (err) {
+        fetchChatBtn.disabled = false;
+        document.getElementById("pullBtn").disabled = false;
+        setStatus(err.message, true);
+      }
+    });
+
+    if (sessionStorage.getItem(tokenKey)) {
+      showApp();
+      refresh().catch((err) => setStatus(err.message, true));
+    }
+  </script>
+</body>
+
 </html>
