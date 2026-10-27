@@ -354,6 +354,32 @@
       text-overflow: ellipsis;
     }
 
+    .chat-item .avatar-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .chat-item .unread-dot {
+      position: absolute;
+      top: -1px;
+      right: -1px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #25d366;
+      border: 2px solid var(--wa-list);
+      box-shadow: 0 0 0 1px rgba(37, 211, 102, 0.35);
+    }
+
+    .chat-item.unread .name {
+      font-weight: 700;
+    }
+
+    .chat-item.unread .when {
+      color: #25d366;
+      font-weight: 600;
+    }
+
     .pane {
       display: flex;
       flex-direction: column;
@@ -588,12 +614,72 @@
 
     .bubble.media {
       max-width: 240px;
+      border-left: 3px solid transparent;
     }
 
     .media-label {
-      font-size: 12.5px;
-      font-weight: 600;
-      color: var(--wa-muted);
+      align-self: flex-start;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .bubble.media-photo {
+      border-left-color: #2563eb;
+    }
+
+    .bubble.media-photo .media-label {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .bubble.media-video {
+      border-left-color: #7c3aed;
+    }
+
+    .bubble.media-video .media-label {
+      background: #ede9fe;
+      color: #6d28d9;
+    }
+
+    .bubble.media-sticker {
+      border-left-color: #ea580c;
+    }
+
+    .bubble.media-sticker .media-label {
+      background: #ffedd5;
+      color: #c2410c;
+    }
+
+    .bubble.media-album {
+      border-left-color: #db2777;
+    }
+
+    .bubble.media-album .media-label {
+      background: #fce7f3;
+      color: #be185d;
+    }
+
+    html.dark .bubble.media-photo .media-label {
+      background: #1e3a5f;
+      color: #93c5fd;
+    }
+
+    html.dark .bubble.media-video .media-label {
+      background: #3b2764;
+      color: #ddd6fe;
+    }
+
+    html.dark .bubble.media-sticker .media-label {
+      background: #5c2e0c;
+      color: #fdba74;
+    }
+
+    html.dark .bubble.media-album .media-label {
+      background: #5b2140;
+      color: #f9a8d4;
     }
 
     .bubble.media .body {
@@ -654,6 +740,7 @@
   <section id="app">
     <div class="toolbar">
       <button id="pullBtn" type="button">Sync people</button>
+      <button id="fetchAllBtn" type="button">Fetch all 6 months</button>
       <button id="refreshBtn" class="secondary" type="button">Refresh</button>
       <button id="themeBtn" class="secondary" type="button" aria-label="Toggle dark mode">Dark</button>
       <label for="senderFilter" class="sr-only">Sender phone</label>
@@ -721,6 +808,7 @@
     const tokenKey = "chatToken";
     const senderKey = "chatSender";
     const themeKey = "chatTheme";
+    const seenKey = "chatSeen";
     const lineRe = /^\[(\d{2}\/\d{2}\/\d{4}),\s(\d{2}:\d{2}:\d{2})\]\s([^:]+):\s?([\s\S]*)$/;
     let rosterPeople = [];
     let selectedChatId = "";
@@ -729,6 +817,7 @@
     let pollTimer = 0;
     let autoFetchFor = "";
     let selecting = false;
+    let bulkRunning = false;
     let searchHits = [];
     let searchIndex = -1;
     let lastPaintChat = "";
@@ -762,6 +851,8 @@
     const pane = document.getElementById("pane");
     const monthsSelect = document.getElementById("monthsSelect");
     const fetchChatBtn = document.getElementById("fetchChatBtn");
+    const fetchAllBtn = document.getElementById("fetchAllBtn");
+    const pullBtn = document.getElementById("pullBtn");
     const peopleSearch = document.getElementById("peopleSearch");
     const messageSearch = document.getElementById("messageSearch");
     const searchCount = document.getElementById("searchCount");
@@ -826,6 +917,95 @@
       return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
     }
 
+    function normalizeTs(value) {
+      const n = Number(value) || 0;
+      if (!n) return 0;
+      return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+    }
+
+    function messageToUnix(message) {
+      const [dd, mm, yyyy] = String(message?.date || "").split("/");
+      const [hh, mi, ss] = String(message?.time || "00:00:00").split(":");
+      if (!dd || !mm || !yyyy) return 0;
+      const d = new Date(
+        Number(yyyy),
+        Number(mm) - 1,
+        Number(dd),
+        Number(hh) || 0,
+        Number(mi) || 0,
+        Number(ss) || 0,
+      );
+      const ms = d.getTime();
+      return Number.isNaN(ms) ? 0 : Math.floor(ms / 1000);
+    }
+
+    function readSeenMap() {
+      try {
+        return JSON.parse(localStorage.getItem(seenKey) || "{}") || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function writeSeenMap(map) {
+      localStorage.setItem(seenKey, JSON.stringify(map));
+    }
+
+    function getSenderSeen(sender) {
+      const map = readSeenMap();
+      return map[sender] && typeof map[sender] === "object" ? map[sender] : null;
+    }
+
+    function ensureSeenBaseline(sender, chats) {
+      if (!sender) return;
+      const map = readSeenMap();
+      if (map[sender] && typeof map[sender] === "object") return;
+      const baseline = {};
+      for (const chat of chats || []) {
+        if (!chat?.chatId) continue;
+        baseline[chat.chatId] = normalizeTs(chat.lastTs);
+      }
+      map[sender] = baseline;
+      writeSeenMap(map);
+    }
+
+    function markChatSeen(chat) {
+      const sender = activeSender();
+      if (!sender || !chat?.chatId) return;
+      const map = readSeenMap();
+      const seen = map[sender] && typeof map[sender] === "object" ? map[sender] : {};
+      seen[chat.chatId] = normalizeTs(chat.lastTs) || Math.floor(Date.now() / 1000);
+      map[sender] = seen;
+      writeSeenMap(map);
+    }
+
+    function isChatUnread(chat) {
+      const sender = activeSender();
+      if (!sender || !chat?.chatId) return false;
+      if (chat.chatId === selectedChatId) return false;
+      const seen = getSenderSeen(sender);
+      if (!seen) return false;
+      if (!Object.prototype.hasOwnProperty.call(seen, chat.chatId)) return true;
+      return normalizeTs(chat.lastTs) > Number(seen[chat.chatId] || 0);
+    }
+
+    function sortRosterPeople() {
+      rosterPeople.sort((a, b) => normalizeTs(b.lastTs) - normalizeTs(a.lastTs));
+    }
+
+    function bumpChatActivity(chatId, lastTs) {
+      const ts = normalizeTs(lastTs);
+      if (!chatId || !ts) return;
+      const chat = rosterPeople.find((item) => item.chatId === chatId);
+      if (!chat) return;
+      if (ts > normalizeTs(chat.lastTs)) chat.lastTs = ts;
+      if (selectedChat && selectedChat.chatId === chatId && ts > normalizeTs(selectedChat.lastTs)) {
+        selectedChat.lastTs = ts;
+      }
+      sortRosterPeople();
+      renderList();
+    }
+
     function formatTime12(time) {
       const match = String(time || "").match(/^(\d{2}):(\d{2})/);
       if (!match) return String(time || "");
@@ -851,15 +1031,21 @@
     function mediaDisplay(body) {
       const text = String(body || "").trim();
       if (/^\/9j\//.test(text) || /^data:image\//i.test(text)) {
-        return { label: "Photo", caption: "" };
+        return { label: "Photo", kind: "photo", caption: "" };
       }
-      const match = text.match(/^\[(image|photo|video|album)\](?:\s+(\S+))?(?:\s+([\s\S]+))?$/i);
+      const labels = {
+        image: ["Photo", "photo"],
+        photo: ["Photo", "photo"],
+        video: ["Video", "video"],
+        sticker: ["Sticker", "sticker"],
+        album: ["Album", "album"],
+      };
+      const match = text.match(/^\[(image|photo|video|sticker|album)\](?:\s+(\S+))?(?:\s+([\s\S]+))?$/i);
       if (!match) return null;
-      const type = match[1].toLowerCase();
-      const label = type === "video" ? "Video" : type === "album" ? "Album" : "Photo";
+      const [label, kind] = labels[match[1].toLowerCase()];
       let caption = (match[3] || "").trim();
       if (looksLikeMediaPayload(caption)) caption = "";
-      return { label, caption };
+      return { label, kind, caption };
     }
 
     function appendHighlighted(parent, text, query) {
@@ -978,6 +1164,7 @@
       const token = sessionStorage.getItem(tokenKey) || "";
       const response = await fetch(path, {
         ...options,
+        cache: "no-store",
         headers: {
           Authorization: `Bearer ${token}`,
           ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -1027,19 +1214,38 @@
         return;
       }
       for (const chat of people) {
+        const unread = isChatUnread(chat);
         const button = document.createElement("button");
         button.type = "button";
-        button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}`;
+        button.className = `chat-item${chat.chatId === selectedChatId ? " active" : ""}${unread ? " unread" : ""}`;
+        const avatarWrap = document.createElement("div");
+        avatarWrap.className = "avatar-wrap";
         const avatar = document.createElement("div");
         avatar.className = "avatar sm";
         setAvatar(avatar, chat.chatName);
+        avatarWrap.appendChild(avatar);
+        if (unread) {
+          const dot = document.createElement("span");
+          dot.className = "unread-dot";
+          dot.title = "Unread";
+          avatarWrap.appendChild(dot);
+        }
         const row = document.createElement("div");
         row.className = "row";
         row.innerHTML = `<div class="top"><div class="name"></div><div class="when"></div></div><div class="preview"></div>`;
         row.querySelector(".name").textContent = chat.chatName;
         row.querySelector(".when").textContent = formatWhen(chat.lastTs);
-        row.querySelector(".preview").textContent = chat.isGroup ? "Group" : "Tap to load chat";
-        button.appendChild(avatar);
+        let preview = chat.isGroup ? "Group" : "Tap to load chat";
+        if (unread) {
+          const seen = getSenderSeen(activeSender()) || {};
+          preview = Object.prototype.hasOwnProperty.call(seen, chat.chatId)
+            ? "Unread"
+            : chat.isGroup
+              ? "New group"
+              : "New chat";
+        }
+        row.querySelector(".preview").textContent = preview;
+        button.appendChild(avatarWrap);
         button.appendChild(row);
         button.addEventListener("click", () => {
           selectPerson(chat).catch((err) => setStatus(err.message, true));
@@ -1140,7 +1346,7 @@
         meta.className = "meta";
         meta.textContent = formatStamp(message);
         if (media) {
-          bubble.classList.add("media");
+          bubble.classList.add("media", `media-${media.kind}`);
           const label = document.createElement("div");
           label.className = "media-label";
           hits += appendHighlighted(label, media.label, query);
@@ -1200,9 +1406,9 @@
         return 0;
       }
       const data = await api(`/roster?senderName=${encodeURIComponent(sender)}`);
-      rosterPeople = (data.chats || [])
-        .slice()
-        .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+      rosterPeople = (data.chats || []).slice();
+      ensureSeenBaseline(sender, rosterPeople);
+      sortRosterPeople();
       if (selectedChatId && !rosterPeople.some((chat) => chat.chatId === selectedChatId)) {
         selectedChatId = "";
         selectedChat = null;
@@ -1225,6 +1431,10 @@
       const messages = items.flatMap((item) => parseMessages(item.text || ""));
       messages.sort((a, b) => messageSortKey(a).localeCompare(messageSortKey(b)));
       threadMessages = messages;
+      if (messages.length) {
+        const latest = messages[messages.length - 1];
+        bumpChatActivity(selectedChatId, messageToUnix(latest));
+      }
       return messages.length;
     }
 
@@ -1241,6 +1451,150 @@
       });
     }
 
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function setBulkBusy(busy) {
+      bulkRunning = busy;
+      pullBtn.disabled = busy;
+      fetchAllBtn.disabled = busy;
+      fetchChatBtn.disabled = busy;
+      senderFilter.disabled = busy;
+    }
+
+    function isStatusChat(chat) {
+      const id = String(chat?.chatId || "");
+      const name = String(chat?.chatName || "").toLowerCase();
+      return id === "status@broadcast" || name === "status";
+    }
+
+    async function chatExportedAt(chatId) {
+      const sender = activeSender();
+      if (!sender || !chatId) return "";
+      const data = await api(
+        `/exports?senderName=${encodeURIComponent(sender)}&chatId=${encodeURIComponent(chatId)}`,
+      );
+      const items = data.items || [];
+      return items[0]?.exportedAt || "";
+    }
+
+    async function syncPeopleThenWait() {
+      const sender = activeSender();
+      const before = (await api(`/roster?senderName=${encodeURIComponent(sender)}`)).updatedAt || "";
+      const current = await api("/trigger");
+      if (current.export_requested) {
+        await api("/trigger/ack", { method: "POST", body: "{}" });
+      }
+      setStatus(`Syncing people for ${sender}. Leave WhatsApp Web open…`);
+      await api("/trigger", { method: "POST", body: "{}" });
+      const deadline = Date.now() + 8 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await sleep(5000);
+        const trigger = await api("/trigger");
+        const status = String(trigger.senderStatus || "");
+        if (/not open/i.test(status)) {
+          throw new Error("WhatsApp Web is not open on the sender.");
+        }
+        const roster = await api(`/roster?senderName=${encodeURIComponent(sender)}`);
+        const updated = roster.updatedAt || "";
+        if (updated && updated !== before && !trigger.export_requested) {
+          await loadSenderRoster();
+          return rosterPeople.length;
+        }
+        if (!trigger.export_requested && /Synced\s+\d+\s+people/i.test(status)) {
+          await loadSenderRoster();
+          return rosterPeople.length;
+        }
+        setStatus(`Syncing people for ${sender}… ${status || "waiting"}`);
+      }
+      if ((await api("/trigger")).export_requested) {
+        await api("/trigger/ack", { method: "POST", body: "{}" });
+      }
+      await loadSenderRoster();
+      if (!rosterPeople.length) {
+        throw new Error("People-list sync timed out and no people are listed yet.");
+      }
+      setStatus(`People sync timed out. Continuing with ${rosterPeople.length} listed people.`);
+      return rosterPeople.length;
+    }
+
+    async function fetchOneChatSixMonths(chat, index, total) {
+      const label = chat.chatName || chat.chatId;
+      const before = await chatExportedAt(chat.chatId);
+      setStatus(`Fetching ${index}/${total} “${label}” for 6 months…`);
+      await requestChatFetch(chat, 6);
+      const deadline = Date.now() + 18 * 60 * 1000;
+      let lastStatus = "";
+      while (Date.now() < deadline) {
+        await sleep(5000);
+        const trigger = await api("/trigger");
+        const status = String(trigger.senderStatus || "");
+        if (status && status !== lastStatus) {
+          lastStatus = status;
+          setStatus(`Fetching ${index}/${total} “${label}”: ${status}`);
+        }
+        if (/not open/i.test(status)) {
+          throw new Error("WhatsApp Web is not open on the sender.");
+        }
+        const exportedAt = await chatExportedAt(chat.chatId);
+        if (exportedAt && exportedAt !== before && !trigger.export_requested) {
+          return true;
+        }
+        if (!trigger.export_requested && status.includes("Uploaded") && status.includes(label)) {
+          return true;
+        }
+        if (!trigger.export_requested && /Failed to fetch/i.test(status)) {
+          return false;
+        }
+      }
+      if ((await api("/trigger")).export_requested) {
+        await api("/trigger/ack", { method: "POST", body: "{}" });
+      }
+      return false;
+    }
+
+    async function runFetchAllSixMonths() {
+      const sender = activeSender();
+      if (!sender) {
+        setStatus("Choose a sender first.", true);
+        return;
+      }
+      if (bulkRunning) return;
+      clearInterval(pollTimer);
+      setBulkBusy(true);
+      try {
+        const peopleCount = await syncPeopleThenWait();
+        const chats = rosterPeople.filter((chat) => !isStatusChat(chat));
+        if (!chats.length) {
+          setStatus(`Synced ${peopleCount} people, but none are ready to fetch.`, true);
+          return;
+        }
+        let uploaded = 0;
+        const failed = [];
+        for (let index = 0; index < chats.length; index += 1) {
+          const chat = chats[index];
+          const ok = await fetchOneChatSixMonths(chat, index + 1, chats.length);
+          if (ok) uploaded += 1;
+          else failed.push(chat.chatName || chat.chatId);
+        }
+        await loadSenderRoster();
+        if (selectedChatId) {
+          await loadSelectedThread();
+          renderThread();
+        }
+        const failNote = failed.length ? ` Failed: ${failed.join(", ")}.` : "";
+        setStatus(
+          `Done. Uploaded ${uploaded}/${chats.length} chats for ${sender} (6 months).${failNote}`,
+          Boolean(failed.length),
+        );
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      } finally {
+        setBulkBusy(false);
+      }
+    }
+
     async function selectPerson(chat) {
       if (selecting) return;
       selecting = true;
@@ -1254,6 +1608,8 @@
         renderList();
         renderThread("Loading…");
         const count = await loadSelectedThread();
+        markChatSeen(chat);
+        renderList();
         if (count) {
           renderThread();
           setStatus(`Showing ${count} messages for ${chat.chatName}.`);
@@ -1309,7 +1665,8 @@
       clearInterval(pollTimer);
       if (button) button.disabled = true;
       fetchChatBtn.disabled = true;
-      document.getElementById("pullBtn").disabled = true;
+      pullBtn.disabled = true;
+      fetchAllBtn.disabled = true;
       let tries = 0;
       pollTimer = setInterval(async () => {
         tries += 1;
@@ -1319,8 +1676,12 @@
             clearInterval(pollTimer);
             autoFetchFor = "";
             fetchChatBtn.disabled = false;
-            document.getElementById("pullBtn").disabled = false;
+            pullBtn.disabled = false;
+            fetchAllBtn.disabled = false;
             if (button) button.disabled = false;
+            if (selectedChat) markChatSeen(selectedChat);
+            else markChatSeen({ chatId: selectedChatId, lastTs: rosterPeople.find((c) => c.chatId === selectedChatId)?.lastTs });
+            renderList();
             setStatus(`Loaded ${threadMessages.length} messages for ${selectedChat?.chatName || "chat"}.`);
             return;
           }
@@ -1328,14 +1689,16 @@
             clearInterval(pollTimer);
             if (button) button.disabled = false;
             fetchChatBtn.disabled = false;
-            document.getElementById("pullBtn").disabled = false;
+            pullBtn.disabled = false;
+            fetchAllBtn.disabled = false;
             if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
           }
         } catch (err) {
           clearInterval(pollTimer);
           if (button) button.disabled = false;
           fetchChatBtn.disabled = false;
-          document.getElementById("pullBtn").disabled = false;
+          pullBtn.disabled = false;
+          fetchAllBtn.disabled = false;
           setStatus(err.message, true);
         }
       }, 5000);
@@ -1405,16 +1768,21 @@
         .catch((err) => setStatus(err.message, true));
     });
 
-    document.getElementById("pullBtn").addEventListener("click", async () => {
-      const button = document.getElementById("pullBtn");
+    pullBtn.addEventListener("click", async () => {
+      if (bulkRunning) return;
       try {
         await api("/trigger", { method: "POST", body: "{}" });
         setStatus("People-list sync requested. Leave WhatsApp Web open on the sender. Checking…");
-        waitForUpload(button);
+        waitForUpload(pullBtn);
       } catch (err) {
-        button.disabled = false;
+        pullBtn.disabled = false;
+        fetchAllBtn.disabled = false;
         setStatus(err.message, true);
       }
+    });
+
+    fetchAllBtn.addEventListener("click", () => {
+      runFetchAllSixMonths().catch((err) => setStatus(err.message, true));
     });
 
     fetchChatBtn.addEventListener("click", async () => {
@@ -1439,7 +1807,8 @@
         waitForUpload(fetchChatBtn);
       } catch (err) {
         fetchChatBtn.disabled = false;
-        document.getElementById("pullBtn").disabled = false;
+        pullBtn.disabled = false;
+        fetchAllBtn.disabled = false;
         setStatus(err.message, true);
       }
     });

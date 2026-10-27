@@ -44,6 +44,7 @@ function sendJson(res, status, body) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(payload),
+    "Cache-Control": "no-store",
   });
   res.end(payload);
 }
