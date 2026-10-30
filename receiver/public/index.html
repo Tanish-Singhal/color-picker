@@ -200,6 +200,15 @@
       color: #ea4335;
     }
 
+    #autoFetchStatus {
+      flex-basis: 100%;
+      color: var(--wa-muted);
+      font-size: 11px;
+      line-height: 1.35;
+      opacity: 0.9;
+      min-height: 1em;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: minmax(300px, 380px) 1fr;
@@ -748,6 +757,7 @@
         <option value="">Choose a sender…</option>
       </select>
       <div id="status">No chats yet.</div>
+      <div id="autoFetchStatus" hidden></div>
     </div>
     <div class="layout">
       <aside class="sidebar">
@@ -815,6 +825,8 @@
     let selectedChat = null;
     let threadMessages = [];
     let pollTimer = 0;
+    let idleRefreshTimer = 0;
+    let selectedExportAt = "";
     let autoFetchFor = "";
     let selecting = false;
     let bulkRunning = false;
@@ -838,6 +850,7 @@
     const gate = document.getElementById("gate");
     const app = document.getElementById("app");
     const statusEl = document.getElementById("status");
+    const autoFetchStatusEl = document.getElementById("autoFetchStatus");
     const listEl = document.getElementById("list");
     const threadEl = document.getElementById("thread");
     const threadHeader = document.getElementById("threadHeader");
@@ -1160,6 +1173,68 @@
       statusEl.classList.toggle("error", Boolean(isError));
     }
 
+    function setAutoFetchStatus(text) {
+      if (!autoFetchStatusEl) return;
+      const note = String(text || "").trim();
+      autoFetchStatusEl.hidden = !note;
+      autoFetchStatusEl.textContent = note ? `Auto-fetch: ${note}` : "";
+    }
+
+    async function updateAutoFetchStatus() {
+      const sender = activeSender();
+      if (!sender) {
+        setAutoFetchStatus("");
+        return;
+      }
+      try {
+        const data = await api(
+          `/auto-fetch?senderName=${encodeURIComponent(sender)}`,
+        );
+        if (!data.enabled) {
+          setAutoFetchStatus("");
+          return;
+        }
+        setAutoFetchStatus(data.status || "");
+      } catch {
+        // Keep the last note if the status route is briefly unavailable.
+      }
+    }
+
+    function clearUploadPoll() {
+      clearInterval(pollTimer);
+      pollTimer = 0;
+    }
+
+    async function quietLiveRefresh() {
+      if (bulkRunning || pollTimer || selecting) return;
+      const sender = activeSender();
+      if (!sender) return;
+      await loadSenderRoster();
+      if (selectedChatId) {
+        const person = rosterPeople.find((chat) => chat.chatId === selectedChatId);
+        if (person) selectedChat = person;
+        const exportedAt = await chatExportedAt(selectedChatId);
+        if (exportedAt && exportedAt !== selectedExportAt) {
+          selectedExportAt = exportedAt;
+          await loadSelectedThread();
+          renderThread();
+        }
+      }
+      await updateAutoFetchStatus();
+    }
+
+    function stopIdleRefresh() {
+      clearInterval(idleRefreshTimer);
+      idleRefreshTimer = 0;
+    }
+
+    function startIdleRefresh() {
+      stopIdleRefresh();
+      idleRefreshTimer = setInterval(() => {
+        quietLiveRefresh().catch(() => { });
+      }, 45_000);
+    }
+
     async function api(path, options = {}) {
       const token = sessionStorage.getItem(tokenKey) || "";
       const response = await fetch(path, {
@@ -1181,6 +1256,7 @@
     }
 
     function showGate(message) {
+      stopIdleRefresh();
       app.style.display = "none";
       gate.style.display = "grid";
       document.getElementById("gateError").textContent = message || "";
@@ -1189,6 +1265,7 @@
     function showApp() {
       gate.style.display = "none";
       app.style.display = "grid";
+      startIdleRefresh();
     }
 
     function renderList() {
@@ -1487,7 +1564,10 @@
         await api("/trigger/ack", { method: "POST", body: "{}" });
       }
       setStatus(`Syncing people for ${sender}. Leave WhatsApp Web open…`);
-      await api("/trigger", { method: "POST", body: "{}" });
+      await api("/trigger", {
+        method: "POST",
+        body: JSON.stringify({ senderName: sender }),
+      });
       const deadline = Date.now() + 8 * 60 * 1000;
       while (Date.now() < deadline) {
         await sleep(5000);
@@ -1561,7 +1641,7 @@
         return;
       }
       if (bulkRunning) return;
-      clearInterval(pollTimer);
+      clearUploadPoll();
       setBulkBusy(true);
       try {
         const peopleCount = await syncPeopleThenWait();
@@ -1608,6 +1688,7 @@
         renderList();
         renderThread("Loading…");
         const count = await loadSelectedThread();
+        selectedExportAt = await chatExportedAt(chat.chatId);
         markChatSeen(chat);
         renderList();
         if (count) {
@@ -1641,6 +1722,12 @@
       } else {
         renderThread();
       }
+      if (selectedChatId) {
+        selectedExportAt = await chatExportedAt(selectedChatId);
+      } else {
+        selectedExportAt = "";
+      }
+      await updateAutoFetchStatus();
       const trigger = await api("/trigger");
       const who = trigger.senderName ? ` (${trigger.senderName})` : "";
       const senderNote = trigger.senderStatus
@@ -1662,7 +1749,7 @@
     }
 
     function waitForUpload(button) {
-      clearInterval(pollTimer);
+      clearUploadPoll();
       if (button) button.disabled = true;
       fetchChatBtn.disabled = true;
       pullBtn.disabled = true;
@@ -1673,7 +1760,7 @@
         try {
           const waiting = await refresh();
           if (autoFetchFor && selectedChatId === autoFetchFor && threadMessages.length) {
-            clearInterval(pollTimer);
+            clearUploadPoll();
             autoFetchFor = "";
             fetchChatBtn.disabled = false;
             pullBtn.disabled = false;
@@ -1686,7 +1773,7 @@
             return;
           }
           if (!waiting || tries >= 36) {
-            clearInterval(pollTimer);
+            clearUploadPoll();
             if (button) button.disabled = false;
             fetchChatBtn.disabled = false;
             pullBtn.disabled = false;
@@ -1694,7 +1781,7 @@
             if (waiting) setStatus("Still waiting. The sender tab may be closed.", true);
           }
         } catch (err) {
-          clearInterval(pollTimer);
+          clearUploadPoll();
           if (button) button.disabled = false;
           fetchChatBtn.disabled = false;
           pullBtn.disabled = false;
@@ -1758,21 +1845,35 @@
       else sessionStorage.removeItem(senderKey);
       selectedChatId = "";
       selectedChat = null;
+      selectedExportAt = "";
       threadMessages = [];
       autoFetchFor = "";
       peopleSearch.value = "";
       messageSearch.value = "";
       searchIndex = -1;
       loadSenderRoster()
-        .then(() => renderThread())
+        .then(() => {
+          renderThread();
+          return updateAutoFetchStatus();
+        })
         .catch((err) => setStatus(err.message, true));
     });
 
     pullBtn.addEventListener("click", async () => {
       if (bulkRunning) return;
+      const sender = activeSender();
+      if (!sender) {
+        setStatus("Choose a sender first.", true);
+        return;
+      }
       try {
-        await api("/trigger", { method: "POST", body: "{}" });
-        setStatus("People-list sync requested. Leave WhatsApp Web open on the sender. Checking…");
+        await api("/trigger", {
+          method: "POST",
+          body: JSON.stringify({ senderName: sender }),
+        });
+        setStatus(
+          `People-list sync requested for ${sender}. Leave WhatsApp Web open on the sender. Checking…`,
+        );
         waitForUpload(pullBtn);
       } catch (err) {
         pullBtn.disabled = false;

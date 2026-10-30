@@ -317,6 +317,16 @@ async function maybeStart() {
       await runSingleChatJob(settings, trigger);
       return;
     }
+    if (
+      trigger.requestSenderName &&
+      trigger.requestSenderName !== settings.senderName
+    ) {
+      await reportStatus(
+        settings,
+        `Waiting for sender “${trigger.requestSenderName}”.`,
+      );
+      return;
+    }
     await runRosterJob("remote");
     return;
   }

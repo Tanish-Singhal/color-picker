@@ -12,6 +12,16 @@ const PORT = Number(process.env.PORT || 8787);
 const TOKEN = process.env.TOKEN || "";
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const MAX_BODY = 25 * 1024 * 1024;
+const AUTO_FETCH_SENDER = String(
+  process.env.AUTO_FETCH_SENDER || "priya2",
+).trim();
+const AUTO_FETCH_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AUTO_FETCH_INTERVAL_MS) || 300_000,
+);
+const AUTO_FETCH_MONTHS = Number(process.env.AUTO_FETCH_MONTHS) || 6;
+const AUTO_FETCH_ROSTER_TIMEOUT_MS = 4 * 60 * 1000;
+const AUTO_FETCH_CHAT_TIMEOUT_MS = 18 * 60 * 1000;
 
 if (!TOKEN || !MONGODB_URI) {
   console.error("TOKEN and MONGODB_URI are required");
@@ -24,6 +34,7 @@ const db = client.db();
 const exportsCol = db.collection("exports");
 const controlCol = db.collection("control");
 const rostersCol = db.collection("rosters");
+const autoFetchCol = db.collection("autoFetch");
 await exportsCol.createIndex(
   { senderName: 1, chatId: 1, day: 1 },
   { unique: true },
@@ -348,7 +359,7 @@ const server = http.createServer(async (req, res) => {
         {
           $set: {
             export_requested: true,
-            requestSenderName: "",
+            requestSenderName,
             requestChatId: "",
             requestChatName: "",
             requestMonths: 0,
@@ -357,7 +368,11 @@ const server = http.createServer(async (req, res) => {
         },
         { upsert: true },
       );
-      sendJson(res, 200, { ok: true, export_requested: true });
+      sendJson(res, 200, {
+        ok: true,
+        export_requested: true,
+        requestSenderName,
+      });
       return;
     }
 
@@ -371,12 +386,474 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && path === "/auto-fetch") {
+      const senderName = String(
+        url.searchParams.get("senderName") || AUTO_FETCH_SENDER || "",
+      ).trim();
+      const doc = senderName
+        ? await autoFetchCol.findOne({ _id: senderName })
+        : null;
+      sendJson(res, 200, {
+        ok: true,
+        senderName,
+        enabled: Boolean(AUTO_FETCH_SENDER),
+        intervalMs: AUTO_FETCH_INTERVAL_MS,
+        months: AUTO_FETCH_MONTHS,
+        lastCycleAt: doc?.lastCycleAt || null,
+        status: doc?.status || "",
+        pendingDiffCount: Number(doc?.pendingDiffCount) || 0,
+        lastUploaded: Number(doc?.lastUploaded) || 0,
+        lastFailed: Number(doc?.lastFailed) || 0,
+        updatedAt: doc?.updatedAt || null,
+      });
+      return;
+    }
+
     sendJson(res, 404, { ok: false, error: "Not found" });
   } catch (err) {
     sendJson(res, 500, { ok: false, error: err?.message || "Server error" });
   }
 });
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isStatusChat(chat) {
+  const id = String(chat?.chatId || "");
+  const name = String(chat?.chatName || "").toLowerCase();
+  return id === "status@broadcast" || name === "status";
+}
+
+function normalizeTs(value) {
+  const n = Number(value) || 0;
+  if (!n) return 0;
+  return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
+async function readTrigger() {
+  return (await controlCol.findOne({ _id: "trigger" })) || {};
+}
+
+async function setAutoStatus(senderName, fields) {
+  await autoFetchCol.updateOne(
+    { _id: senderName },
+    {
+      $set: {
+        ...fields,
+        updatedAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+async function waitForTriggerClear(timeoutMs, stillOurs, options = {}) {
+  const expectedSender = String(options.expectedSender || "").trim();
+  const evidence = options.evidence;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(5000);
+    const trigger = await readTrigger();
+    if (!trigger.export_requested) {
+      if (evidence) {
+        const proven = await evidence(trigger);
+        if (proven) return { ok: true, trigger };
+        return { ok: false, aborted: true, trigger };
+      }
+      return { ok: true, trigger };
+    }
+    if (stillOurs && !stillOurs(trigger)) {
+      return { ok: false, aborted: true, trigger };
+    }
+    const status = String(trigger.senderStatus || "");
+    const statusFromExpected =
+      !expectedSender ||
+      !trigger.senderName ||
+      trigger.senderName === expectedSender;
+    if (statusFromExpected && /not open/i.test(status)) {
+      return { ok: false, notOpen: true, trigger };
+    }
+  }
+  return { ok: false, timedOut: true, trigger: await readTrigger() };
+}
+
+async function queueRosterSync(senderName) {
+  await controlCol.updateOne(
+    { _id: "trigger" },
+    {
+      $set: {
+        export_requested: true,
+        requestSenderName: senderName,
+        requestChatId: "",
+        requestChatName: "",
+        requestMonths: 0,
+        updatedAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+async function queueChatFetch(senderName, chat, months) {
+  await controlCol.updateOne(
+    { _id: "trigger" },
+    {
+      $set: {
+        export_requested: true,
+        requestSenderName: senderName,
+        requestChatId: chat.chatId,
+        requestChatName: chat.chatName || chat.chatId,
+        requestMonths: months,
+        updatedAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+}
+
+function diffRosterChats(prevMap, chats) {
+  const changed = [];
+  for (const chat of chats || []) {
+    if (!chat?.chatId || isStatusChat(chat)) continue;
+    const prev = normalizeTs(prevMap?.[chat.chatId]);
+    const next = normalizeTs(chat.lastTs);
+    if (!Object.prototype.hasOwnProperty.call(prevMap || {}, chat.chatId)) {
+      changed.push(chat);
+      continue;
+    }
+    if (next > prev) changed.push(chat);
+  }
+  return changed;
+}
+
+function rosterToMap(chats) {
+  const map = {};
+  for (const chat of chats || []) {
+    if (!chat?.chatId || isStatusChat(chat)) continue;
+    map[chat.chatId] = normalizeTs(chat.lastTs);
+  }
+  return map;
+}
+
+function progressSnapshotMap(prevMap, chats, succeededIds, unresolvedIds) {
+  const map = { ...(prevMap || {}) };
+  const succeeded = new Set(succeededIds || []);
+  const unresolved = new Set(unresolvedIds || []);
+  for (const chat of chats || []) {
+    if (!chat?.chatId || isStatusChat(chat)) continue;
+    if (unresolved.has(chat.chatId) && !succeeded.has(chat.chatId)) {
+      if (!Object.prototype.hasOwnProperty.call(prevMap || {}, chat.chatId)) {
+        delete map[chat.chatId];
+      }
+      continue;
+    }
+    map[chat.chatId] = normalizeTs(chat.lastTs);
+  }
+  return map;
+}
+
+let autoFetchRunning = false;
+
+async function runAutoFetchCycle(senderName) {
+  if (!senderName || autoFetchRunning) return;
+  autoFetchRunning = true;
+  try {
+    const trigger = await readTrigger();
+    if (trigger.export_requested) {
+      await setAutoStatus(senderName, {
+        status: "Skipped: another pull is already waiting.",
+        lastCycleAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const senderAt = trigger.senderAt || "";
+    const senderStatus = String(trigger.senderStatus || "");
+    const senderMatches =
+      !trigger.senderName || trigger.senderName === senderName;
+    if (senderMatches && /not open/i.test(senderStatus) && senderAt) {
+      const ageMs = Date.now() - new Date(senderAt).getTime();
+      if (!Number.isNaN(ageMs) && ageMs < AUTO_FETCH_INTERVAL_MS * 2) {
+        await setAutoStatus(senderName, {
+          status: "Skipped: WhatsApp Web is not open on the sender.",
+          lastCycleAt: new Date().toISOString(),
+        });
+        return;
+      }
+    }
+
+    const beforeRoster = await rostersCol.findOne({ senderName });
+    const beforeUpdated = beforeRoster?.updatedAt
+      ? new Date(beforeRoster.updatedAt).toISOString()
+      : "";
+    const snapshot = (await autoFetchCol.findOne({ _id: senderName })) || {};
+    const prevMap = snapshot.chats || {};
+
+    await setAutoStatus(senderName, {
+      status: `Syncing people for ${senderName}…`,
+      lastCycleAt: new Date().toISOString(),
+      pendingDiffCount: 0,
+    });
+    await queueRosterSync(senderName);
+
+    const rosterWait = await waitForTriggerClear(
+      AUTO_FETCH_ROSTER_TIMEOUT_MS,
+      (t) =>
+        Boolean(t.export_requested) &&
+        !t.requestChatId &&
+        (t.requestSenderName || "") === senderName,
+      {
+        expectedSender: senderName,
+        evidence: async (t) => {
+          const rosterDoc = await rostersCol.findOne({ senderName });
+          const updated = rosterDoc?.updatedAt
+            ? new Date(rosterDoc.updatedAt).toISOString()
+            : "";
+          if (updated && updated !== beforeUpdated) return true;
+          const status = String(t.senderStatus || "");
+          return (
+            t.senderName === senderName && /Synced\s+\d+\s+people/i.test(status)
+          );
+        },
+      },
+    );
+    if (rosterWait.aborted) {
+      await setAutoStatus(senderName, {
+        status: "Aborted: a manual pull replaced the auto roster sync.",
+        lastCycleAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (rosterWait.notOpen) {
+      if ((await readTrigger()).export_requested) {
+        await controlCol.updateOne(
+          { _id: "trigger" },
+          { $set: clearTriggerFields() },
+          { upsert: true },
+        );
+      }
+      await setAutoStatus(senderName, {
+        status: "Stopped: WhatsApp Web is not open on the sender.",
+        lastCycleAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (rosterWait.timedOut) {
+      if ((await readTrigger()).export_requested) {
+        await controlCol.updateOne(
+          { _id: "trigger" },
+          { $set: clearTriggerFields() },
+          { upsert: true },
+        );
+      }
+      await setAutoStatus(senderName, {
+        status: "Roster sync timed out. Will retry next cycle.",
+        lastCycleAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const roster = await rostersCol.findOne({ senderName });
+    const chats = roster?.chats || [];
+    const afterUpdated = roster?.updatedAt
+      ? new Date(roster.updatedAt).toISOString()
+      : "";
+    if (!chats.length) {
+      await setAutoStatus(senderName, {
+        status: "Roster empty after sync.",
+        chats: {},
+        lastCycleAt: new Date().toISOString(),
+        pendingDiffCount: 0,
+      });
+      return;
+    }
+
+    const firstSnapshot =
+      !snapshot.chats || !Object.keys(snapshot.chats).length;
+    const changed = firstSnapshot ? [] : diffRosterChats(prevMap, chats);
+    const nextMap = rosterToMap(chats);
+
+    if (firstSnapshot) {
+      await setAutoStatus(senderName, {
+        status: `Baseline saved (${chats.length} people). Next cycle will fetch new activity.`,
+        chats: nextMap,
+        lastCycleAt: new Date().toISOString(),
+        pendingDiffCount: 0,
+        lastUploaded: 0,
+        lastFailed: 0,
+        rosterUpdatedAt: afterUpdated || beforeUpdated,
+      });
+      return;
+    }
+
+    if (!changed.length) {
+      await setAutoStatus(senderName, {
+        status: `No new chat activity (${chats.length} people).`,
+        chats: nextMap,
+        lastCycleAt: new Date().toISOString(),
+        pendingDiffCount: 0,
+        lastUploaded: 0,
+        lastFailed: 0,
+        rosterUpdatedAt: afterUpdated || beforeUpdated,
+      });
+      return;
+    }
+
+    let uploaded = 0;
+    const failed = [];
+    const succeededIds = [];
+    const unresolvedIds = changed.map((chat) => chat.chatId);
+    const snapshotNow = () =>
+      progressSnapshotMap(prevMap, chats, succeededIds, unresolvedIds);
+
+    for (let i = 0; i < changed.length; i += 1) {
+      const chat = changed[i];
+      const label = chat.chatName || chat.chatId;
+      const live = await readTrigger();
+      if (live.export_requested) {
+        await setAutoStatus(senderName, {
+          status: `Aborted before “${label}”: another pull is waiting.`,
+          chats: snapshotNow(),
+          lastCycleAt: new Date().toISOString(),
+          pendingDiffCount: changed.length - i,
+          lastUploaded: uploaded,
+          lastFailed: failed.length,
+        });
+        return;
+      }
+
+      await setAutoStatus(senderName, {
+        status: `Fetching ${i + 1}/${changed.length} “${label}” (${AUTO_FETCH_MONTHS} months)…`,
+        chats: snapshotNow(),
+        lastCycleAt: new Date().toISOString(),
+        pendingDiffCount: changed.length - i,
+        lastUploaded: uploaded,
+        lastFailed: failed.length,
+      });
+
+      const beforeExport = await exportsCol.findOne(
+        { senderName, chatId: chat.chatId },
+        { sort: { updatedAt: -1 } },
+      );
+      const beforeAt = beforeExport?.exportedAt || "";
+
+      await queueChatFetch(senderName, chat, AUTO_FETCH_MONTHS);
+      const chatWait = await waitForTriggerClear(
+        AUTO_FETCH_CHAT_TIMEOUT_MS,
+        (t) =>
+          Boolean(t.export_requested) &&
+          t.requestChatId === chat.chatId &&
+          (t.requestSenderName || "") === senderName,
+        {
+          expectedSender: senderName,
+          evidence: async (t) => {
+            const afterExport = await exportsCol.findOne(
+              { senderName, chatId: chat.chatId },
+              { sort: { updatedAt: -1 } },
+            );
+            const afterAt = afterExport?.exportedAt || "";
+            if (afterAt && afterAt !== beforeAt) return true;
+            const statusText = String(t.senderStatus || "");
+            return (
+              t.senderName === senderName &&
+              statusText.includes("Uploaded") &&
+              statusText.includes(label)
+            );
+          },
+        },
+      );
+
+      if (chatWait.aborted) {
+        await setAutoStatus(senderName, {
+          status: `Aborted during “${label}”: a manual pull took over.`,
+          chats: snapshotNow(),
+          lastCycleAt: new Date().toISOString(),
+          pendingDiffCount: changed.length - i,
+          lastUploaded: uploaded,
+          lastFailed: failed.length,
+        });
+        return;
+      }
+      if (chatWait.notOpen) {
+        if ((await readTrigger()).export_requested) {
+          await controlCol.updateOne(
+            { _id: "trigger" },
+            { $set: clearTriggerFields() },
+            { upsert: true },
+          );
+        }
+        failed.push(label);
+        await setAutoStatus(senderName, {
+          status: `Stopped on “${label}”: WhatsApp Web is not open.`,
+          chats: snapshotNow(),
+          lastCycleAt: new Date().toISOString(),
+          pendingDiffCount: changed.length - i - 1,
+          lastUploaded: uploaded,
+          lastFailed: failed.length,
+        });
+        return;
+      }
+
+      if (chatWait.timedOut || !chatWait.ok) {
+        if ((await readTrigger()).export_requested) {
+          await controlCol.updateOne(
+            { _id: "trigger" },
+            { $set: clearTriggerFields() },
+            { upsert: true },
+          );
+        }
+        failed.push(label);
+        continue;
+      }
+      succeededIds.push(chat.chatId);
+      uploaded += 1;
+    }
+
+    const failNote = failed.length ? ` Failed: ${failed.join(", ")}.` : "";
+    await setAutoStatus(senderName, {
+      status: `Done. Uploaded ${uploaded}/${changed.length} updated chats.${failNote}`,
+      chats: snapshotNow(),
+      lastCycleAt: new Date().toISOString(),
+      pendingDiffCount: Math.max(0, changed.length - uploaded),
+      lastUploaded: uploaded,
+      lastFailed: failed.length,
+      rosterUpdatedAt: afterUpdated || beforeUpdated,
+    });
+  } catch (err) {
+    await setAutoStatus(senderName, {
+      status: `Auto-fetch error: ${err?.message || String(err)}`,
+      lastCycleAt: new Date().toISOString(),
+    });
+  } finally {
+    autoFetchRunning = false;
+  }
+}
+
+function startAutoFetchLoop() {
+  if (!AUTO_FETCH_SENDER) {
+    console.log("auto-fetch disabled (AUTO_FETCH_SENDER empty)");
+    return;
+  }
+  if (!ALLOWED_MONTHS.has(AUTO_FETCH_MONTHS)) {
+    console.log(
+      `auto-fetch disabled (AUTO_FETCH_MONTHS must be 1, 2, 3, 6, or 12; got ${AUTO_FETCH_MONTHS})`,
+    );
+    return;
+  }
+  console.log(
+    `auto-fetch enabled for ${AUTO_FETCH_SENDER} every ${AUTO_FETCH_INTERVAL_MS}ms (${AUTO_FETCH_MONTHS} months)`,
+  );
+  const tick = () => {
+    runAutoFetchCycle(AUTO_FETCH_SENDER).catch((err) => {
+      console.error("auto-fetch cycle failed", err?.message || err);
+    });
+  };
+  setTimeout(tick, 15_000);
+  setInterval(tick, AUTO_FETCH_INTERVAL_MS);
+}
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`receiver listening on ${PORT}`);
+  startAutoFetchLoop();
 });
